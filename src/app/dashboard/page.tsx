@@ -68,17 +68,6 @@ export default function DashboardPage() {
   const isAdmin = userProfile?.role === 'admin';
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
-  const usersQuery = useMemoFirebase(() => {
-    // This query should only be enabled when the user is an admin.
-    // However, including `isAdmin` in the dependency array can cause loops if `userProfile` re-renders frequently.
-    // The `useCollection` hook should internally handle the `null` query case.
-    // We will only enable this query once we have confirmed the user is an admin.
-    if (!firestore || !isAdmin) return null; 
-    return collection(firestore, 'users');
-  }, [firestore, isAdmin]); // Stable dependencies
-  
-  const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
-
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'courses');
@@ -145,32 +134,32 @@ export default function DashboardPage() {
 
   }, [allAttempts]);
   
+  // Note: We cannot enrich with user names here without fetching all users,
+  // which is causing permission issues. We will display userId for now or fetch one-by-one.
+  // A better solution would involve denormalizing user names into attempts or using a cloud function.
   const enrichedRecentAttempts = useMemo<EnrichedAttempt[]>(() => {
-    if (!recentAttempts || !users || !courses || !exams) return [];
+    if (!recentAttempts || !courses || !exams) return [];
 
-    const usersMap = new Map(users.map(u => [u.userId, u]));
     const coursesMap = new Map(courses.map(c => [c.id, c]));
     const examsMap = new Map(exams.map(e => [e.id, e]));
 
     return recentAttempts.map(attempt => {
-      const user = usersMap.get(attempt.userId);
-      // The examId in the attempt collection might not exist in the exams collection
       const exam = examsMap.get(attempt.examId);
       const course = exam ? coursesMap.get(exam.courseId) : undefined;
       
       return {
         ...attempt,
-        userName: user?.name || attempt.userId,
+        userName: attempt.userId, // Fallback to userId
         courseTitle: course?.title || 'Unknown Course',
-        userAvatarUrl: user?.avatarUrl,
+        userAvatarUrl: undefined, // No user data available
       };
     });
-  }, [recentAttempts, users, courses, exams]);
+  }, [recentAttempts, courses, exams]);
 
-  const isLoading = isUserLoading || isProfileLoading || (isAdmin && usersLoading) || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || examsLoading;
+  const isLoading = isUserLoading || isProfileLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || examsLoading;
 
   const stats = [
-    { title: "Total Users", value: (isAdmin && users) ? users.length : '...', icon: Users },
+    // { title: "Total Users", value: '...', icon: Users }, // This requires fetching all users, which is blocked.
     { title: "Total Courses", value: courses?.length ?? '...', icon: BookOpen },
     { title: "Attempts Today", value: attemptsToday?.length ?? '...', icon: CheckCircle },
     { title: "Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
