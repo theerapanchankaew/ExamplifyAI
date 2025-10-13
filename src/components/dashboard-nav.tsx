@@ -12,7 +12,8 @@ import {
   Book,
   Users,
   BarChart3,
-  GraduationCap
+  GraduationCap,
+  PlusCircle
 } from "lucide-react"
 
 import {
@@ -23,6 +24,7 @@ import {
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/add-course", label: "Add Course", icon: PlusCircle },
   { href: "/dashboard/ai-course-creator", label: "AI Course Creator", icon: BotMessageSquare },
   { href: "/dashboard/course-creator", label: "Course Creator", icon: BookOpen },
   { href: "/dashboard/master-course-creator", label: "Master Courses", icon: BookMarked },
@@ -41,16 +43,15 @@ export function DashboardNav() {
     <SidebarMenu>
       {navItems.map((item) => (
         <SidebarMenuItem key={item.href}>
-          <Link href={item.href} passHref>
-            <SidebarMenuButton
-              as="a"
-              isActive={pathname.startsWith(item.href) && (item.href === '/dashboard' ? pathname === item.href : true) }
-              tooltip={{ children: item.label }}
-            >
-              <item.icon />
-              <span>{item.label}</span>
-            </SidebarMenuButton>
-          </Link>
+          <SidebarMenuButton
+            as={Link}
+            href={item.href}
+            isActive={pathname.startsWith(item.href) && (item.href === '/dashboard' ? pathname === item.href : true) }
+            tooltip={{ children: item.label }}
+          >
+            <item.icon />
+            <span>{item.label}</span>
+          </SidebarMenuButton>
         </SidebarMenuItem>
       ))}
     </SidebarMenu>
