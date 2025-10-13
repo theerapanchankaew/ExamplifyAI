@@ -79,9 +79,8 @@ export default function AiCourseCreatorPage() {
             description: course.description,
         });
 
-        // 2. Create general questions
-        const questionIds: string[] = [];
-        if (course.questions) {
+        // 2. Create general questions (if any)
+        if (course.questions && course.questions.length > 0) {
             for (const q of course.questions) {
                 const questionRef = doc(collection(firestore, "questions"));
                 batch.set(questionRef, {
@@ -90,16 +89,19 @@ export default function AiCourseCreatorPage() {
                     correctAnswer: q.answer,
                     difficulty: q.difficulty,
                 });
-                questionIds.push(questionRef.id);
             }
         }
 
         // 3. Create lessons and their associated quizzes/questions
-        if (course.lessons) {
+        if (course.lessons && course.lessons.length > 0) {
             for (const lesson of course.lessons) {
                 const lessonRef = doc(collection(firestore, "lessons"));
-                let quizId: string | null = null;
-
+                const lessonData: any = {
+                    courseId: courseRef.id,
+                    title: lesson.title,
+                    content: lesson.content,
+                };
+                
                 // 3a. Check if lesson has a quiz
                 if (lesson.quiz && lesson.quiz.length > 0) {
                     const quizQuestionIds: string[] = [];
@@ -120,18 +122,12 @@ export default function AiCourseCreatorPage() {
                     batch.set(quizRef, {
                         questionIds: quizQuestionIds,
                     });
-                    quizId = quizRef.id;
+                    
+                    // 3c. Link the quiz to the lesson
+                    lessonData.quizId = quizRef.id;
                 }
                 
-                // 3c. Create the lesson document, linking course and quiz (if it exists)
-                const lessonData: any = {
-                    courseId: courseRef.id,
-                    title: lesson.title,
-                    content: lesson.content,
-                };
-                if (quizId) {
-                    lessonData.quizId = quizId;
-                }
+                // 3d. Set the lesson document data
                 batch.set(lessonRef, lessonData);
             }
         }
@@ -303,5 +299,3 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
-
-    
