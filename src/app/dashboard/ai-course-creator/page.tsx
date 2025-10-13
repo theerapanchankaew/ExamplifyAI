@@ -75,11 +75,12 @@ export default function AiCourseCreatorPage() {
         batch.set(courseRef, {
             title: course.title,
             difficulty: form.getValues('difficulty'),
-            competency: form.getValues('topic'),
+            competency: form.getValues('topic'), // Using topic as competency
             description: course.description,
         });
 
-        // 2. Create general (non-lesson specific) questions
+        // 2. Create general (non-lesson specific) questions and get their IDs
+        const generalQuestionIds: string[] = [];
         if (course.questions && course.questions.length > 0) {
             for (const q of course.questions) {
                 const questionRef = doc(collection(firestore, "questions"));
@@ -89,8 +90,21 @@ export default function AiCourseCreatorPage() {
                     correctAnswer: q.answer,
                     difficulty: q.difficulty,
                 });
+                generalQuestionIds.push(questionRef.id);
             }
         }
+        
+        // Example of how you might create an exam with these questions.
+        // This part is commented out as the 'Exam' entity might need more logic
+        // if (generalQuestionIds.length > 0) {
+        //     const examRef = doc(collection(firestore, "exams"));
+        //     batch.set(examRef, {
+        //         courseId: courseRef.id,
+        //         blueprint: `Exam for ${course.title}`,
+        //         questionIds: generalQuestionIds
+        //     });
+        // }
+
 
         // 3. Create lessons and their associated quizzes/questions
         if (course.lessons && course.lessons.length > 0) {
@@ -269,6 +283,7 @@ export default function AiCourseCreatorPage() {
                 {course.lessons.map((lesson, index) => (
                   <AccordionItem value={`item-${index}`} key={index}>
                     <AccordionTrigger>{lesson.title}</AccordionTrigger>
+
                     <AccordionContent>
                       <div className="prose prose-sm max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: lesson.content.replace(/\n/g, '<br />') }} />
                       {lesson.quiz && lesson.quiz.length > 0 && (
