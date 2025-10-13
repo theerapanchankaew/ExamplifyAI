@@ -33,7 +33,10 @@ export function StudentNav() {
   const pathname = usePathname()
 
   const isActive = (href: string) => {
-    return pathname === href || (href !== "/student-dashboard" && pathname.startsWith(href));
+    if (href === "/student-dashboard") {
+      return pathname === href;
+    }
+    return pathname.startsWith(href);
   }
 
   return (

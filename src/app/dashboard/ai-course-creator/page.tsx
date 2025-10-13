@@ -71,7 +71,8 @@ export default function AiCourseCreatorPage() {
     try {
       const batch = writeBatch(firestore);
       const difficulty = form.getValues('difficulty');
-  
+      const topic = form.getValues('topic');
+
       // 1. Create Course Ref and Data
       const courseRef = doc(collection(firestore, "courses"));
       batch.set(courseRef, {
@@ -79,10 +80,10 @@ export default function AiCourseCreatorPage() {
         title: course.title,
         description: course.description,
         difficulty: difficulty,
-        competency: form.getValues('topic'),
+        competency: topic,
       });
   
-      // 2. Create general questions
+      // 2. Create general questions (if any)
       if (course.questions && course.questions.length > 0) {
         for (const q of course.questions) {
           const questionRef = doc(collection(firestore, "questions"));
@@ -96,19 +97,19 @@ export default function AiCourseCreatorPage() {
         }
       }
   
-      // 3. Create lessons and their quizzes
+      // 3. Create lessons and their quizzes (if any)
       if (course.lessons && course.lessons.length > 0) {
-        for (const lesson of course.lessons) {
+        for (const lessonData of course.lessons) {
           const lessonRef = doc(collection(firestore, "lessons"));
           let quizId: string | null = null;
   
           // If lesson has a quiz, create quiz and its questions
-          if (lesson.quiz && lesson.quiz.length > 0) {
-            const quizQuestionIds: string[] = [];
+          if (lessonData.quiz && lessonData.quiz.length > 0) {
             const quizRef = doc(collection(firestore, 'quizzes'));
             quizId = quizRef.id;
+            const quizQuestionIds: string[] = [];
 
-            for (const quizItem of lesson.quiz) {
+            for (const quizItem of lessonData.quiz) {
               const quizQuestionRef = doc(collection(firestore, 'questions'));
               quizQuestionIds.push(quizQuestionRef.id);
               batch.set(quizQuestionRef, {
@@ -116,10 +117,11 @@ export default function AiCourseCreatorPage() {
                 stem: quizItem.stem,
                 options: quizItem.options,
                 correctAnswer: quizItem.answer,
-                difficulty: difficulty, // Use overall course difficulty
+                difficulty: difficulty, // Use overall course difficulty for quiz questions
               });
             }
   
+            // Set quiz data with its question IDs
             batch.set(quizRef, {
               id: quizRef.id,
               questionIds: quizQuestionIds,
@@ -130,9 +132,9 @@ export default function AiCourseCreatorPage() {
           batch.set(lessonRef, {
             id: lessonRef.id,
             courseId: courseRef.id,
-            title: lesson.title,
-            content: lesson.content,
-            ...(quizId && { quizId }),
+            title: lessonData.title,
+            content: lessonData.content,
+            ...(quizId && { quizId: quizId }),
           });
         }
       }

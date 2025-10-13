@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Car, CarFront, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -68,7 +68,7 @@ export default function StudentDashboardPage() {
             <p className="text-muted-foreground">Browse our catalog of courses to gain new qualifications and master certificates. Use your CAB tokens to enroll.</p>
           </CardContent>
           <div className="p-6 pt-0">
-             <Link href="#" passHref><Button className="w-full">Browse Marketplace</Button></Link>
+             <Link href="/student-dashboard/marketplace" passHref><Button className="w-full">Browse Marketplace</Button></Link>
           </div>
         </Card>
         <Card className="flex flex-col">
@@ -79,7 +79,7 @@ export default function StudentDashboardPage() {
             <p className="text-muted-foreground">After enrolling in a course, go to 'My Courses' to start your remotely proctored exam.</p>
           </CardContent>
           <div className="p-6 pt-0">
-             <Link href="#" passHref><Button className="w-full">Go to My Courses</Button></Link>
+             <Link href="/student-dashboard/my-courses" passHref><Button className="w-full">Go to My Courses</Button></Link>
           </div>
         </Card>
         <Card className="flex flex-col">
@@ -90,7 +90,7 @@ export default function StudentDashboardPage() {
             <p className="text-muted-foreground">Access your score reports, earned certificates, and official qualifications.</p>
           </CardContent>
           <div className="p-6 pt-0">
-            <Link href="#" passHref><Button className="w-full">View My History</Button></Link>
+            <Link href="/student-dashboard/my-history" passHref><Button className="w-full">View My History</Button></Link>
           </div>
         </Card>
       </div>
