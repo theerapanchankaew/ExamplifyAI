@@ -1,5 +1,121 @@
-import { PlaceholderContent } from "@/components/placeholder-content";
+'use client';
+
+import { useMemo } from 'react';
+import { useFirestore } from '@/firebase';
+import { useCollection } from '@/firebase';
+import { useMemoFirebase } from '@/firebase/provider';
+import { collection } from 'firebase/firestore';
+import type { UserProfile } from '@/types';
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Loader2 } from 'lucide-react';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function UsersPage() {
-    return <PlaceholderContent title="User Management" description="Manage all users, roles, and permissions within the system." />;
+  const firestore = useFirestore();
+  
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'users');
+  }, [firestore]);
+
+  const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
+
+  const getAvatarForUser = (user: UserProfile, index: number) => {
+    // This is a simple logic to rotate between a few placeholder avatars
+    const imageId = user.role === 'admin' ? 'user-avatar-1' : `student-avatar-${(index % 1) + 1}`;
+    const image = PlaceHolderImages.find(img => img.id === imageId);
+    return image || PlaceHolderImages[1]; // fallback
+  }
+
+  const getRoleVariant = (role: string) => {
+    switch (role.toLowerCase()) {
+      case 'admin':
+        return 'default';
+      case 'instructor':
+        return 'secondary';
+      case 'student':
+        return 'outline';
+      default:
+        return 'secondary';
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>User Management</CardTitle>
+        <CardDescription>
+          A list of all the users in the system.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex h-64 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[350px]">User</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users && users.length > 0 ? (
+                  users.map((user, index) => {
+                    const avatar = getAvatarForUser(user, index);
+                    return (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar>
+                              <AvatarImage src={avatar.imageUrl} alt={user.name} data-ai-hint={avatar.imageHint} />
+                              <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{user.name || 'N/A'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{user.email || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={getRoleVariant(user.role)}>
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center">
+                      No users found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
