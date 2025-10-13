@@ -42,8 +42,7 @@ export default function StudentDashboardPage() {
         {isClient && (
           <Carousel opts={{ align: "start", loop: true, }} className="w-full">
             <CarouselContent>
-              {featuredCourses.map((course, index) => {
-                return (
+              {featuredCourses.map((course, index) => (
                   <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
                     <Card className="overflow-hidden">
                       <CardContent className="p-0">
@@ -56,8 +55,7 @@ export default function StudentDashboardPage() {
                       </CardContent>
                     </Card>
                   </CarouselItem>
-                )
-              })}
+              ))}
             </CarouselContent>
             <CarouselPrevious className="ml-12" />
             <CarouselNext className="mr-12" />
