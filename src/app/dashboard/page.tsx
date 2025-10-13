@@ -3,7 +3,7 @@
 import { useMemoFirebase } from "@/firebase/provider"
 import { useCollection } from "@/firebase"
 import { collection, query, where, limit, orderBy } from "firebase/firestore"
-import { useFirestore } from "@/firebase"
+import { useFirestore, useUser } from "@/firebase"
 import {
   Card,
   CardContent,
@@ -46,6 +46,7 @@ const chartConfig = {
 
 export default function DashboardPage() {
   const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
   const [today, setToday] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -55,33 +56,33 @@ export default function DashboardPage() {
   }, []);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null; // Wait for user
     return collection(firestore, 'users');
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
   const coursesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null; // Wait for user
     return collection(firestore, 'courses');
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: courses, isLoading: coursesLoading } = useCollection(coursesQuery);
 
   const attemptsTodayQuery = useMemoFirebase(() => {
-    if (!firestore || !today) return null;
+    if (!firestore || !today || !user) return null; // Wait for user and today
     return query(collection(firestore, 'attempts'), where('timestamp', '>=', today));
-  }, [firestore, today]);
+  }, [firestore, today, user]);
   const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection<ExamAttempt>(attemptsTodayQuery);
 
   const recentAttemptsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null; // Wait for user
     return query(collection(firestore, 'attempts'), orderBy('timestamp', 'desc'), limit(5));
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: recentAttempts, isLoading: recentAttemptsLoading } = useCollection<ExamAttempt>(recentAttemptsQuery);
 
   const allAttemptsQuery = useMemoFirebase(() => {
-      if(!firestore) return null;
+      if(!firestore || !user) return null; // Wait for user
       return collection(firestore, 'attempts');
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: allAttempts, isLoading: allAttemptsLoading } = useCollection<ExamAttempt>(allAttemptsQuery);
 
 
@@ -118,7 +119,7 @@ export default function DashboardPage() {
 
   }, [allAttempts]);
   
-  const isLoading = usersLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || !today;
+  const isLoading = isUserLoading || usersLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || !today;
 
   const stats = [
     { title: "Total Users", value: users?.length ?? '...', icon: Users },
