@@ -1,5 +1,9 @@
 'use client'
 
+import { useMemoFirebase } from "@/firebase/provider"
+import { useCollection } from "@/firebase"
+import { collection, query, where, limit, orderBy } from "firebase/firestore"
+import { useFirestore } from "@/firebase"
 import {
   Card,
   CardContent,
@@ -23,25 +27,10 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, BookOpen, CheckCircle, Percent, Activity } from "lucide-react"
-import type { ExamAttempt } from "@/types"
-
-const stats = [
-  { title: "Total Users", value: "1,254", icon: Users, change: "+12.5%" },
-  { title: "Total Courses", value: "89", icon: BookOpen, change: "+5" },
-  { title: "Attempts Today", value: "342", icon: CheckCircle, change: "-8.2%" },
-  { title: "Pass Rate", value: "87.5%", icon: Percent, change: "+1.5%" },
-];
-
-const chartData = [
-  { date: "7 days ago", attempts: 210, passes: 180 },
-  { date: "6 days ago", attempts: 250, passes: 215 },
-  { date: "5 days ago", attempts: 230, passes: 205 },
-  { date: "4 days ago", attempts: 280, passes: 250 },
-  { date: "3 days ago", attempts: 310, passes: 270 },
-  { date: "2 days ago", attempts: 290, passes: 260 },
-  { date: "Yesterday", attempts: 342, passes: 301 },
-];
+import { Users, BookOpen, CheckCircle, Percent, Activity, Loader2 } from "lucide-react"
+import type { ExamAttempt, UserProfile } from "@/types"
+import { subDays, format } from 'date-fns'
+import { useMemo } from "react"
 
 const chartConfig = {
   attempts: {
@@ -54,15 +43,97 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-const recentAttempts: ExamAttempt[] = [
-  { id: "1", user: { name: "John Doe", avatarUrl: "https://picsum.photos/seed/10/40/40" }, course: { title: "ISO 9001 Fundamentals" }, score: 92, status: "Passed", timestamp: new Date(Date.now() - 3600000 * 1) },
-  { id: "2", user: { name: "Jane Smith", avatarUrl: "https://picsum.photos/seed/11/40/40" }, course: { title: "Advanced Auditing" }, score: 78, status: "Passed", timestamp: new Date(Date.now() - 3600000 * 2) },
-  { id: "3", user: { name: "Mike Johnson", avatarUrl: "https://picsum.photos/seed/12/40/40" }, course: { title: "Safety Regulations" }, score: 55, status: "Failed", timestamp: new Date(Date.now() - 3600000 * 3) },
-  { id: "4", user: { name: "Emily White", avatarUrl: "https://picsum.photos/seed/13/40/40" }, course: { title: "ISO 9001 Fundamentals" }, score: 88, status: "Passed", timestamp: new Date(Date.now() - 3600000 * 4) },
-  { id: "5", user: { name: "Chris Green", avatarUrl: "https://picsum.photos/seed/14/40/40" }, course: { title: "IAF/ISIC Standards" }, score: 95, status: "Passed", timestamp: new Date(Date.now() - 3600000 * 5) },
-];
 
 export default function DashboardPage() {
+  const firestore = useFirestore();
+
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'users');
+  }, [firestore]);
+  const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
+
+  const coursesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'courses');
+  }, [firestore]);
+  const { data: courses, isLoading: coursesLoading } = useCollection(coursesQuery);
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const attemptsTodayQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'attempts'), where('timestamp', '>=', today));
+  }, [firestore, today]);
+  const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection<ExamAttempt>(attemptsTodayQuery);
+
+  const recentAttemptsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'attempts'), orderBy('timestamp', 'desc'), limit(5));
+  }, [firestore]);
+  const { data: recentAttempts, isLoading: recentAttemptsLoading } = useCollection<ExamAttempt>(recentAttemptsQuery);
+
+  const allAttemptsQuery = useMemoFirebase(() => {
+      if(!firestore) return null;
+      return collection(firestore, 'attempts');
+  }, [firestore]);
+  const { data: allAttempts, isLoading: allAttemptsLoading } = useCollection<ExamAttempt>(allAttemptsQuery);
+
+
+  const passRate = useMemo(() => {
+    if (!allAttempts || allAttempts.length === 0) return 0;
+    const passedCount = allAttempts.filter(attempt => attempt.status === 'Passed').length;
+    return (passedCount / allAttempts.length) * 100;
+  }, [allAttempts]);
+  
+  const chartData = useMemo(() => {
+    if (!allAttempts) return [];
+    
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = subDays(new Date(), 6 - i);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    });
+
+    return last7Days.map(date => {
+      const dateString = format(date, 'MMM d');
+      const attemptsOnDate = allAttempts.filter(attempt => {
+          const attemptDate = (attempt.timestamp as any).toDate();
+          return attemptDate >= date && attemptDate < new Date(date.getTime() + 24 * 60 * 60 * 1000);
+      });
+      
+      const passes = attemptsOnDate.filter(a => a.status === 'Passed').length;
+      
+      return {
+        date: dateString,
+        attempts: attemptsOnDate.length,
+        passes: passes
+      }
+    });
+
+  }, [allAttempts]);
+  
+  const isLoading = usersLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading;
+
+  const stats = [
+    { title: "Total Users", value: users?.length ?? '...', icon: Users },
+    { title: "Total Courses", value: courses?.length ?? '...', icon: BookOpen },
+    { title: "Attempts Today", value: attemptsToday?.length ?? '...', icon: CheckCircle },
+    { title: "Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full min-h-[80vh] items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -74,7 +145,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold font-headline">{stat.value}</div>
-              <p className="text-xs text-muted-foreground">{stat.change} from last period</p>
+              {/*<p className="text-xs text-muted-foreground">{stat.change} from last period</p>*/}
             </CardContent>
           </Card>
         ))}
@@ -117,7 +188,7 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentAttempts.map((attempt) => (
+                  {recentAttempts && recentAttempts.map((attempt) => (
                     <TableRow key={attempt.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">

@@ -1,7 +1,10 @@
-export type User = {
+import { Timestamp } from "firebase/firestore";
+
+export type UserProfile = {
+  id: string;
   name: string;
   email: string;
-  avatarUrl: string;
+  role: string;
 };
 
 export type ExamAttempt = {
@@ -15,5 +18,5 @@ export type ExamAttempt = {
   };
   score: number;
   status: 'Passed' | 'Failed';
-  timestamp: Date;
+  timestamp: Timestamp | Date;
 };
