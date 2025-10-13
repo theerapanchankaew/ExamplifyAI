@@ -3,7 +3,7 @@ import { Timestamp } from "firebase/firestore";
 
 export type UserProfile = {
   id: string; // This is automatically added by useCollection and represents the document ID
-  userId: string;
+  userId: string; // The user's unique ID from Firebase Auth
   name: string;
   email: string;
   role: string;
