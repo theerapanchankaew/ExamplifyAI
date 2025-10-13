@@ -104,7 +104,7 @@ export default function AiCourseCreatorPage() {
                   stem: quizItem.stem,
                   options: quizItem.options,
                   correctAnswer: quizItem.answer,
-                  difficulty: form.getValues('difficulty'), // Assign lesson difficulty
+                  difficulty: form.getValues('difficulty'), // Assign course difficulty
               });
               quizQuestionIds.push(quizQuestionRef.id);
           }
