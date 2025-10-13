@@ -29,7 +29,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } fro
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Users, BookOpen, CheckCircle, Percent, Activity, Loader2 } from "lucide-react"
-import type { Attempt } from "@/types"
+import type { Attempt, UserProfile } from "@/types"
+import type { Course } from '@/types/course'
 import { subDays, format, startOfDay } from 'date-fns'
 import { useMemo } from "react"
 
@@ -44,6 +45,11 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+type EnrichedAttempt = Attempt & {
+  userName?: string;
+  courseTitle?: string;
+  userAvatar?: string;
+};
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -52,35 +58,40 @@ export default function DashboardPage() {
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore || !user || isUserLoading) return null;
     return collection(firestore, 'users');
-  }, [firestore, user]);
-  const { data: users, isLoading: usersLoading } = useCollection(usersQuery);
+  }, [firestore, user, isUserLoading]);
+  const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
   const coursesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore || !user || isUserLoading) return null;
     return collection(firestore, 'courses');
-  }, [firestore, user]);
-  const { data: courses, isLoading: coursesLoading } = useCollection(coursesQuery);
+  }, [firestore, user, isUserLoading]);
+  const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
+
+  const examsQuery = useMemoFirebase(() => {
+    if (!firestore || !user || isUserLoading) return null;
+    return collection(firestore, 'exams');
+  }, [firestore, user, isUserLoading]);
+  const { data: exams, isLoading: examsLoading } = useCollection<{courseId: string}>(examsQuery);
 
   const attemptsTodayQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; 
+    if (!firestore || !user || isUserLoading) return null; 
     return query(collection(firestore, 'attempts'), where('timestamp', '>=', Timestamp.fromDate(todayStart)));
-  }, [firestore, user, todayStart]);
+  }, [firestore, user, isUserLoading, todayStart]);
   const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection<Attempt>(attemptsTodayQuery);
 
   const recentAttemptsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; 
+    if (!firestore || !user || isUserLoading) return null; 
     return query(collection(firestore, 'attempts'), orderBy('timestamp', 'desc'), limit(5));
-  }, [firestore, user]);
+  }, [firestore, user, isUserLoading]);
   const { data: recentAttempts, isLoading: recentAttemptsLoading } = useCollection<Attempt>(recentAttemptsQuery);
 
   const allAttemptsQuery = useMemoFirebase(() => {
-      if(!firestore || !user) return null;
+      if(!firestore || !user || isUserLoading) return null;
       return collection(firestore, 'attempts');
-  }, [firestore, user]);
+  }, [firestore, user, isUserLoading]);
   const { data: allAttempts, isLoading: allAttemptsLoading } = useCollection<Attempt>(allAttemptsQuery);
-
 
   const passRate = useMemo(() => {
     if (!allAttempts || allAttempts.length === 0) return 0;
@@ -117,7 +128,27 @@ export default function DashboardPage() {
 
   }, [allAttempts]);
   
-  const isLoading = isUserLoading || usersLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading;
+  const enrichedRecentAttempts = useMemo<EnrichedAttempt[]>(() => {
+    if (!recentAttempts || !users || !courses || !exams) return [];
+
+    const usersMap = new Map(users.map(u => [u.id, u]));
+    const coursesMap = new Map(courses.map(c => [c.id, c]));
+    const examsMap = new Map(exams.map(e => [e.id, e]));
+
+    return recentAttempts.map(attempt => {
+      const user = usersMap.get(attempt.userId);
+      const exam = examsMap.get(attempt.examId);
+      const course = exam ? coursesMap.get(exam.courseId) : undefined;
+      
+      return {
+        ...attempt,
+        userName: user?.name || attempt.userId,
+        courseTitle: course?.title || 'Unknown Course',
+      };
+    });
+  }, [recentAttempts, users, courses, exams]);
+
+  const isLoading = isUserLoading || usersLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || examsLoading;
 
   const stats = [
     { title: "Total Users", value: users?.length ?? '...', icon: Users },
@@ -126,7 +157,7 @@ export default function DashboardPage() {
     { title: "Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
   ];
 
-  if (isLoading || isUserLoading) {
+  if (isLoading) {
     return (
       <div className="flex h-full min-h-[80vh] items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -181,23 +212,23 @@ export default function DashboardPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Examinee</TableHead>
-                    <TableHead>Course ID</TableHead>
+                    <TableHead>Course</TableHead>
                     <TableHead className="text-right">Score</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentAttempts && recentAttempts.map((attempt) => (
+                  {enrichedRecentAttempts && enrichedRecentAttempts.map((attempt) => (
                     <TableRow key={attempt.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                            <Avatar className="h-9 w-9">
-                            <AvatarFallback>{attempt.userId.substring(0, 2)}</AvatarFallback>
+                            <AvatarFallback>{attempt.userName?.substring(0, 2) || '??'}</AvatarFallback>
                           </Avatar>
-                          <span className="font-medium truncate w-32">{attempt.userId}</span>
+                          <span className="font-medium truncate w-32">{attempt.userName}</span>
                         </div>
                       </TableCell>
-                      <TableCell><div className="truncate w-40">{attempt.examId}</div></TableCell>
+                      <TableCell><div className="truncate w-40">{attempt.courseTitle}</div></TableCell>
                       <TableCell className="text-right font-code">{attempt.score}%</TableCell>
                       <TableCell className="text-center">
                         <Badge variant={attempt.pass ? 'secondary' : 'destructive'}>
@@ -215,3 +246,5 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+    
