@@ -7,16 +7,12 @@ export type UserProfile = {
   role: string;
 };
 
-export type ExamAttempt = {
-  id: string;
-  user: {
-    name: string;
-    avatarUrl: string;
-  };
-  course: {
-    title: string;
-  };
-  score: number;
-  status: 'Passed' | 'Failed';
-  timestamp: Timestamp | Date;
+// This mirrors the `Attempt` entity in backend.json
+export type Attempt = {
+    id: string;
+    userId: string;
+    examId: string;
+    score: number;
+    pass: boolean;
+    timestamp?: Timestamp; // Timestamps from firestore will be of this type
 };
