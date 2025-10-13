@@ -44,13 +44,15 @@ export function DashboardNav() {
       {navItems.map((item) => (
         <SidebarMenuItem key={item.href}>
           <SidebarMenuButton
-            as={Link}
+            asChild
             href={item.href}
             isActive={pathname.startsWith(item.href) && (item.href === '/dashboard' ? pathname === item.href : true) }
             tooltip={{ children: item.label }}
           >
-            <item.icon />
-            <span>{item.label}</span>
+            <Link href={item.href}>
+              <item.icon />
+              <span>{item.label}</span>
+            </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}
