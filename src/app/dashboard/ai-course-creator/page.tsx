@@ -80,6 +80,7 @@ export default function AiCourseCreatorPage() {
       });
 
       // 2. Create general (non-lesson specific) questions from the 'questions' array
+      const generalQuestionIds: string[] = [];
       if (course.questions && course.questions.length > 0) {
         for (const q of course.questions) {
           const questionRef = doc(collection(firestore, "questions"));
@@ -89,8 +90,12 @@ export default function AiCourseCreatorPage() {
             correctAnswer: q.answer,
             difficulty: q.difficulty,
           });
+          generalQuestionIds.push(questionRef.id);
         }
       }
+      
+      // Note: We are not creating an Exam document with generalQuestionIds here yet,
+      // as the schema implies a more complex blueprint. This can be a future enhancement.
 
       // 3. Create lessons and their associated quizzes/questions
       if (course.lessons && course.lessons.length > 0) {
