@@ -1,0 +1,686 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the ExamplifyAI system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user (e.g., Admin, Instructor, Student)."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the user."
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "email",
+        "name"
+      ]
+    },
+    "Course": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Course",
+      "type": "object",
+      "description": "Represents a course in the ExamplifyAI system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the course entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the course."
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "The difficulty level of the course (e.g., Beginner, Intermediate, Expert)."
+        },
+        "competency": {
+          "type": "string",
+          "description": "The competency associated with the course."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "difficulty",
+        "competency"
+      ]
+    },
+    "Lesson": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Lesson",
+      "type": "object",
+      "description": "Represents a lesson within a course.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the lesson entity."
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Course 1:N Lesson)"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the lesson."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the lesson (e.g., text, video URL)."
+        },
+        "quizId": {
+          "type": "string",
+          "description": "Reference to Quiz (Relationship: Lesson 1:1 Quiz)"
+        }
+      },
+      "required": [
+        "id",
+        "courseId",
+        "title",
+        "content"
+      ]
+    },
+    "Question": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Question",
+      "type": "object",
+      "description": "Represents a question in the question bank.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the question entity."
+        },
+        "stem": {
+          "type": "string",
+          "description": "The question stem (the actual question text)."
+        },
+        "options": {
+          "type": "array",
+          "description": "The possible answer options for the question.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "The difficulty level of the question."
+        },
+        "correctAnswer": {
+          "type": "string",
+          "description": "The correct answer to the question."
+        }
+      },
+      "required": [
+        "id",
+        "stem",
+        "options",
+        "difficulty",
+        "correctAnswer"
+      ]
+    },
+    "Exam": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Exam",
+      "type": "object",
+      "description": "Represents an exam for a course.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the exam entity."
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Course 1:N Exam)"
+        },
+        "blueprint": {
+          "type": "string",
+          "description": "The blueprint for the exam (e.g., number of questions per topic)."
+        },
+        "questionIds": {
+          "type": "array",
+          "description": "References to Questions. (Relationship: Exam 1:N Question)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "courseId",
+        "blueprint",
+        "questionIds"
+      ]
+    },
+    "Attempt": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Attempt",
+      "type": "object",
+      "description": "Represents a user's attempt at an exam.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the attempt entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Attempt)"
+        },
+        "examId": {
+          "type": "string",
+          "description": "Reference to Exam. (Relationship: Exam 1:N Attempt)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The score achieved on the exam attempt."
+        },
+        "pass": {
+          "type": "boolean",
+          "description": "Indicates whether the user passed the exam attempt."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "examId",
+        "score",
+        "pass"
+      ]
+    },
+    "DailyMetrics": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DailyMetrics",
+      "type": "object",
+      "description": "Represents daily metrics for the ExamplifyAI system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the daily metrics entity (YYYYMMDD)."
+        },
+        "totalUsers": {
+          "type": "number",
+          "description": "The total number of users in the system."
+        },
+        "totalCourses": {
+          "type": "number",
+          "description": "The total number of courses in the system."
+        },
+        "attemptsToday": {
+          "type": "number",
+          "description": "The number of exam attempts today."
+        },
+        "overallPassRate": {
+          "type": "number",
+          "description": "The overall pass rate for exams."
+        }
+      },
+      "required": [
+        "id",
+        "totalUsers",
+        "totalCourses",
+        "attemptsToday",
+        "overallPassRate"
+      ]
+    },
+    "CourseCompetency": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CourseCompetency",
+      "type": "object",
+      "description": "Represents the mapping between a course and a competency (TA/ISIC).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the course competency entity."
+        },
+        "courseId": {
+          "type": "string",
+          "description": "Reference to Course. (Relationship: Course 1:N CourseCompetency)"
+        },
+        "pair": {
+          "type": "string",
+          "description": "The TA/ISIC pair."
+        },
+        "minPercent": {
+          "type": "number",
+          "description": "The minimum percentage required to achieve the competency."
+        }
+      },
+      "required": [
+        "id",
+        "courseId",
+        "pair",
+        "minPercent"
+      ]
+    },
+    "UserAchievement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserAchievement",
+      "type": "object",
+      "description": "Represents a user's achievement of a competency.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user achievement entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N UserAchievement)"
+        },
+        "pair": {
+          "type": "string",
+          "description": "The TA/ISIC pair achieved."
+        },
+        "awardedAt": {
+          "type": "string",
+          "description": "The date and time when the achievement was awarded.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "pair",
+        "awardedAt"
+      ]
+    },
+    "MasterCourse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MasterCourse",
+      "type": "object",
+      "description": "Represents a master course (program) that combines multiple competencies.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the master course entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the master course."
+        },
+        "requiredPairs": {
+          "type": "array",
+          "description": "The required TA/ISIC pairs for the master course.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "requiredPairs"
+      ]
+    },
+    "MasterCertificate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MasterCertificate",
+      "type": "object",
+      "description": "Represents a certificate issued upon completion of a master course.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the master certificate entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N MasterCertificate)"
+        },
+        "masterCourseId": {
+          "type": "string",
+          "description": "Reference to MasterCourse. (Relationship: MasterCourse 1:N MasterCertificate)"
+        },
+        "serial": {
+          "type": "string",
+          "description": "The serial number of the certificate."
+        },
+        "verifyCode": {
+          "type": "string",
+          "description": "The verification code for the certificate."
+        }
+      },
+      "required": [
+        "id",
+        "serial",
+        "verifyCode",
+        "userId",
+        "masterCourseId"
+      ]
+    },
+    "Roadmap": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Roadmap",
+      "type": "object",
+      "description": "Represents a learning path consisting of multiple courses.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the roadmap entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the roadmap."
+        },
+        "steps": {
+          "type": "array",
+          "description": "References to Courses. (Relationship: Roadmap 1:N Course)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "steps"
+      ]
+    },
+    "Schedule": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Schedule",
+      "type": "object",
+      "description": "Represents a scheduled event (e.g., exam, learning session).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the schedule entity."
+        },
+        "startAt": {
+          "type": "string",
+          "description": "The start date and time of the event.",
+          "format": "date-time"
+        },
+        "endAt": {
+          "type": "string",
+          "description": "The end date and time of the event.",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of what the schedule is."
+        }
+      },
+      "required": [
+        "id",
+        "startAt",
+        "endAt",
+        "description"
+      ]
+    },
+    "Quiz": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Quiz",
+      "type": "object",
+      "description": "Represents a quiz within a lesson.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the quiz."
+        },
+        "questionIds": {
+          "type": "array",
+          "description": "References to Questions. (Relationship: Quiz 1:N Question)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "questionIds"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles.  `userId` matches `request.auth.uid`.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, corresponding to their Firebase Auth UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courses/{courseId}",
+        "definition": {
+          "entityName": "Course",
+          "schema": {
+            "$ref": "#/backend/entities/Course"
+          },
+          "description": "Stores course information.",
+          "params": [
+            {
+              "name": "courseId",
+              "description": "The unique identifier for the course."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/lessons/{lessonId}",
+        "definition": {
+          "entityName": "Lesson",
+          "schema": {
+            "$ref": "#/backend/entities/Lesson"
+          },
+          "description": "Stores lesson information, related to a course by `courseId`.",
+          "params": [
+            {
+              "name": "lessonId",
+              "description": "The unique identifier for the lesson."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/questions/{questionId}",
+        "definition": {
+          "entityName": "Question",
+          "schema": {
+            "$ref": "#/backend/entities/Question"
+          },
+          "description": "Stores questions for exams and quizzes.",
+          "params": [
+            {
+              "name": "questionId",
+              "description": "The unique identifier for the question."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/exams/{examId}",
+        "definition": {
+          "entityName": "Exam",
+          "schema": {
+            "$ref": "#/backend/entities/Exam"
+          },
+          "description": "Stores exam definitions, related to a course by `courseId`.",
+          "params": [
+            {
+              "name": "examId",
+              "description": "The unique identifier for the exam."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/attempts/{attemptId}",
+        "definition": {
+          "entityName": "Attempt",
+          "schema": {
+            "$ref": "#/backend/entities/Attempt"
+          },
+          "description": "Stores user exam attempts, linked to a user by `userId` and an exam by `examId`.",
+          "params": [
+            {
+              "name": "attemptId",
+              "description": "The unique identifier for the attempt."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/metrics/daily/{date}",
+        "definition": {
+          "entityName": "DailyMetrics",
+          "schema": {
+            "$ref": "#/backend/entities/DailyMetrics"
+          },
+          "description": "Stores daily metrics for the system. Document ID is the date in YYYYMMDD format.",
+          "params": [
+            {
+              "name": "date",
+              "description": "The date for the metrics in YYYYMMDD format."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/courseCompetencies/{courseCompetencyId}",
+        "definition": {
+          "entityName": "CourseCompetency",
+          "schema": {
+            "$ref": "#/backend/entities/CourseCompetency"
+          },
+          "description": "Stores the mapping between courses and competencies.",
+          "params": [
+            {
+              "name": "courseCompetencyId",
+              "description": "The unique identifier for the course competency."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/achievements/{userAchievementId}",
+        "definition": {
+          "entityName": "UserAchievement",
+          "schema": {
+            "$ref": "#/backend/entities/UserAchievement"
+          },
+          "description": "Stores user achievements. Accessible only by the user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "userAchievementId",
+              "description": "The unique identifier for the user achievement."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/masterCourses/{masterCourseId}",
+        "definition": {
+          "entityName": "MasterCourse",
+          "schema": {
+            "$ref": "#/backend/entities/MasterCourse"
+          },
+          "description": "Stores master course definitions.",
+          "params": [
+            {
+              "name": "masterCourseId",
+              "description": "The unique identifier for the master course."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/masterCertificates/{masterCertificateId}",
+        "definition": {
+          "entityName": "MasterCertificate",
+          "schema": {
+            "$ref": "#/backend/entities/MasterCertificate"
+          },
+          "description": "Stores issued master certificates, linked to a user by `userId` and a master course by `masterCourseId`.",
+          "params": [
+            {
+              "name": "masterCertificateId",
+              "description": "The unique identifier for the master certificate."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roadmaps/{roadmapId}",
+        "definition": {
+          "entityName": "Roadmap",
+          "schema": {
+            "$ref": "#/backend/entities/Roadmap"
+          },
+          "description": "Stores roadmap definitions.",
+          "params": [
+            {
+              "name": "roadmapId",
+              "description": "The unique identifier for the roadmap."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/schedules/{scheduleId}",
+        "definition": {
+          "entityName": "Schedule",
+          "schema": {
+            "$ref": "#/backend/entities/Schedule"
+          },
+          "description": "Stores schedule events.",
+          "params": [
+            {
+              "name": "scheduleId",
+              "description": "The unique identifier for the schedule."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/quizzes/{quizId}",
+        "definition": {
+          "entityName": "Quiz",
+          "schema": {
+            "$ref": "#/backend/entities/Quiz"
+          },
+          "description": "Stores quiz information.",
+          "params": [
+            {
+              "name": "quizId",
+              "description": "The unique identifier for the quiz."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure authorization independence and optimize security rules based on roles. User-owned data is stored under the `/users/{userId}` path. Collaborative data, if any, will use membership maps (not explicitly defined in the entities, but the system can be extended to support collaborative courses or exams). The `DailyMetrics` collection uses document IDs based on date (`YYYYMMDD`) to ensure uniqueness and easy querying for daily statistics.\n\n**Authorization Independence:** Relationships are created using IDs and collections instead of subcollections, which removes dependency on parent documents and avoids the need for `get()` calls in security rules. For example, `Attempt` documents contain `userId` and `examId`, instead of being nested within `/users/{userId}/attempts/{attemptId}`. This allows querying attempts across all users or exams.\n\n**QAPs (Rules are not Filters):** Segregation is achieved through clear path-based ownership (e.g., `/users/{userId}/achievements/{achievementId}`). Since the roles are stored in the `users` documents themselves, authorization rules can easily validate based on `request.auth.uid` and the user's role. For example, listing achievements is secure because it is user-owned.\n\n**Global Roles (DBAC):** Roles are stored directly within the `User` document, which simplifies role-based access control. No custom claims are used."
+  }
+}
