@@ -74,14 +74,13 @@ export default function AiCourseCreatorPage() {
   
       // 1. Create Course Ref and Data
       const courseRef = doc(collection(firestore, "courses"));
-      const courseData = {
+      batch.set(courseRef, {
         id: courseRef.id,
         title: course.title,
         description: course.description,
         difficulty: difficulty,
         competency: form.getValues('topic'),
-      };
-      batch.set(courseRef, courseData);
+      });
   
       // 2. Create general questions
       if (course.questions && course.questions.length > 0) {
@@ -106,7 +105,9 @@ export default function AiCourseCreatorPage() {
           // If lesson has a quiz, create quiz and its questions
           if (lesson.quiz && lesson.quiz.length > 0) {
             const quizQuestionIds: string[] = [];
-            
+            const quizRef = doc(collection(firestore, 'quizzes'));
+            quizId = quizRef.id;
+
             for (const quizItem of lesson.quiz) {
               const quizQuestionRef = doc(collection(firestore, 'questions'));
               quizQuestionIds.push(quizQuestionRef.id);
@@ -119,8 +120,6 @@ export default function AiCourseCreatorPage() {
               });
             }
   
-            const quizRef = doc(collection(firestore, 'quizzes'));
-            quizId = quizRef.id;
             batch.set(quizRef, {
               id: quizRef.id,
               questionIds: quizQuestionIds,
@@ -307,5 +306,3 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
-
-    
