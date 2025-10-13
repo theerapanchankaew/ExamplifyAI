@@ -59,39 +59,39 @@ export default function DashboardPage() {
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading) return null;
+    if (!firestore) return null;
     return collection(firestore, 'users');
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
   const coursesQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading) return null;
+    if (!firestore) return null;
     return collection(firestore, 'courses');
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
   const examsQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading) return null;
+    if (!firestore) return null;
     return collection(firestore, 'exams');
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
   const { data: exams, isLoading: examsLoading } = useCollection<{courseId: string, id: string}>(examsQuery);
 
   const attemptsTodayQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading) return null; 
+    if (!firestore) return null; 
     return query(collection(firestore, 'attempts'), where('timestamp', '>=', Timestamp.fromDate(todayStart)));
-  }, [firestore, isUserLoading, todayStart]);
+  }, [firestore, todayStart]);
   const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection<Attempt>(attemptsTodayQuery);
 
   const recentAttemptsQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading) return null; 
+    if (!firestore) return null; 
     return query(collection(firestore, 'attempts'), orderBy('timestamp', 'desc'), limit(5));
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
   const { data: recentAttempts, isLoading: recentAttemptsLoading } = useCollection<Attempt>(recentAttemptsQuery);
 
   const allAttemptsQuery = useMemoFirebase(() => {
-      if(!firestore || isUserLoading) return null;
+      if(!firestore) return null;
       return collection(firestore, 'attempts');
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
   const { data: allAttempts, isLoading: allAttemptsLoading } = useCollection<Attempt>(allAttemptsQuery);
 
   const passRate = useMemo(() => {

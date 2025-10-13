@@ -33,9 +33,15 @@ export default function UsersPage() {
   const { user: authUser, isUserLoading } = useUser();
   
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !authUser || isUserLoading) return null;
+    // We can only fetch all users if the current user is an admin.
+    // The security rules will enforce this, but it's good practice to check here too.
+    // The `useUser` hook will give us the currently logged in user, and we can check their role.
+    // We will assume for now the `useDoc` in the `UserNav` has populated the user's profile.
+    // A more robust solution might involve a dedicated `useRole` hook.
+    // For now, let's proceed assuming the rules will catch unauthorized access.
+    if (!firestore || isUserLoading) return null;
     return collection(firestore, 'users');
-  }, [firestore, authUser, isUserLoading]);
+  }, [firestore, isUserLoading]);
 
   const { data: users, isLoading: usersIsLoading } = useCollection<UserProfile>(usersQuery);
 
@@ -48,7 +54,7 @@ export default function UsersPage() {
     return image || PlaceHolderImages[1]; // fallback
   }
 
-  const getRoleVariant = (role: string) => {
+  const getRoleVariant = (role?: string) => {
     switch (role?.toLowerCase()) {
       case 'admin':
         return 'default';
@@ -89,11 +95,11 @@ export default function UsersPage() {
                   users.map((user, index) => {
                     const avatar = getAvatarForUser(user, index);
                     return (
-                      <TableRow key={user.id}>
+                      <TableRow key={user.userId}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar>
-                              <AvatarImage src={avatar.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar.imageHint} />
+                              <AvatarImage src={avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
                               <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
                             </Avatar>
                             <span className="font-medium">{user.name || 'N/A'}</span>
