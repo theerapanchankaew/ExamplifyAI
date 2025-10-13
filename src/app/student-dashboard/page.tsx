@@ -7,12 +7,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { PlaceHolderImages, type ImagePlaceholder } from "@/lib/placeholder-images";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { ShieldAlert } from "lucide-react";
 
-const featuredCourses: (ImagePlaceholder | undefined)[] = [
-  PlaceHolderImages.find(img => img.id === 'course-placeholder-1'),
-  PlaceHolderImages.find(img => img.id === 'course-placeholder-2'),
-  PlaceHolderImages.find(img => img.id === 'course-placeholder-3'),
-];
+const featuredCourseIds = ['course-placeholder-1', 'course-placeholder-2', 'course-placeholder-3'];
+const featuredCourses: ImagePlaceholder[] = featuredCourseIds
+  .map(id => PlaceHolderImages.find(img => img.id === id))
+  .filter((course): course is ImagePlaceholder => course !== undefined);
 
 export default function StudentDashboardPage() {
   return (
@@ -23,6 +23,7 @@ export default function StudentDashboardPage() {
       </div>
 
       <Alert variant="destructive" className="bg-destructive/10 border-destructive/50 text-destructive-foreground [&>svg]:text-destructive">
+          <ShieldAlert className="h-4 w-4" />
           <AlertTitle className="font-bold">Action Required: Verify Your Identity</AlertTitle>
           <AlertDescription className="flex justify-between items-center">
               <div>
@@ -38,23 +39,20 @@ export default function StudentDashboardPage() {
         <h2 className="text-2xl font-bold font-headline mb-4">Featured Courses</h2>
         <Carousel opts={{ align: "start", loop: true, }} className="w-full">
           <CarouselContent>
-            {featuredCourses.map((course, index) => {
-              if (!course) return null;
-              return (
-                <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
-                  <Card className="overflow-hidden">
-                    <CardContent className="p-0">
-                      <Image src={course.imageUrl} alt={course.description} width={600} height={400} className="w-full aspect-video object-cover" data-ai-hint={course.imageHint} />
-                      <div className="p-4">
-                        <h3 className="font-semibold">Course Title {index + 1}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">A brief description of the course content goes here.</p>
-                        <Button className="w-full mt-4">Enroll Now</Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </CarouselItem>
-              )
-            })}
+            {featuredCourses.map((course, index) => (
+              <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
+                <Card className="overflow-hidden">
+                  <CardContent className="p-0">
+                    <Image src={course.imageUrl} alt={course.description} width={600} height={400} className="w-full aspect-video object-cover" data-ai-hint={course.imageHint} />
+                    <div className="p-4">
+                      <h3 className="font-semibold">Course Title {index + 1}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">A brief description of the course content goes here.</p>
+                      <Button className="w-full mt-4">Enroll Now</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </CarouselItem>
+            ))}
           </CarouselContent>
           <CarouselPrevious className="ml-12" />
           <CarouselNext className="mr-12" />

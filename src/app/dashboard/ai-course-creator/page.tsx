@@ -72,7 +72,7 @@ export default function AiCourseCreatorPage() {
       const difficulty = form.getValues('difficulty');
       const topic = form.getValues('topic');
   
-      // 1. Create Course Ref and get its ID
+      // 1. Create Course Ref
       const courseRef = doc(collection(firestore, "courses"));
   
       // 2. Create and batch write all general Questions for the main exam
@@ -88,7 +88,7 @@ export default function AiCourseCreatorPage() {
       });
   
       // 3. Prepare lessons and their related quizzes/questions
-      const lessonWritesPromises = course.lessons.map(async (lessonData) => {
+      const lessonPromises = course.lessons.map((lessonData) => {
         const lessonRef = doc(collection(firestore, "lessons"));
         let quizId: string | null = null;
   
@@ -102,7 +102,7 @@ export default function AiCourseCreatorPage() {
               stem: quizItem.stem,
               options: quizItem.options,
               correctAnswer: quizItem.answer,
-              difficulty: difficulty, // Use course difficulty for quiz questions
+              difficulty: difficulty,
             });
             return quizQuestionRef.id;
           });
@@ -120,19 +120,26 @@ export default function AiCourseCreatorPage() {
           ...(quizId && { quizId: quizId }),
         });
       });
-      
-      await Promise.all(lessonWritesPromises);
   
-      // 4. Batch write the main course document
+      await Promise.all(lessonPromises);
+  
+      // 4. Batch write the main exam document
+      const examRef = doc(collection(firestore, "exams"));
+      batch.set(examRef, {
+        courseId: courseRef.id,
+        questionIds: questionIds,
+        blueprint: `Exam for ${course.title}`,
+      });
+  
+      // 5. Batch write the main course document
       batch.set(courseRef, {
         title: course.title,
         description: course.description,
         difficulty: difficulty,
         competency: topic,
-        questionIds: questionIds, // Store the array of question IDs
       });
   
-      // 5. Commit the entire batch
+      // 6. Commit the entire batch
       await batch.commit();
   
       toast({
@@ -300,4 +307,3 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
-    
