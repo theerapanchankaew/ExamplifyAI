@@ -2,9 +2,33 @@
   "placeholderImages": [
     {
       "id": "user-avatar-1",
-      "description": "User avatar",
+      "description": "Admin user avatar",
       "imageUrl": "https://picsum.photos/seed/1/40/40",
       "imageHint": "person portrait"
+    },
+    {
+      "id": "student-avatar-1",
+      "description": "Student user avatar",
+      "imageUrl": "https://picsum.photos/seed/2/40/40",
+      "imageHint": "student portrait"
+    },
+    {
+      "id": "course-placeholder-1",
+      "description": "Placeholder for a course card",
+      "imageUrl": "https://picsum.photos/seed/101/600/400",
+      "imageHint": "education abstract"
+    },
+    {
+      "id": "course-placeholder-2",
+      "description": "Placeholder for a course card",
+      "imageUrl": "https://picsum.photos/seed/102/600/400",
+      "imageHint": "technology learning"
+    },
+    {
+      "id": "course-placeholder-3",
+      "description": "Placeholder for a course card",
+      "imageUrl": "https://picsum.photos/seed/103/600/400",
+      "imageHint": "science classroom"
     }
   ]
 }

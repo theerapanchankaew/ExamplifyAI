@@ -72,18 +72,18 @@ export default function AiCourseCreatorPage() {
       const batch = writeBatch(firestore);
       const difficulty = form.getValues('difficulty');
   
-      // 1. Create Course
+      // 1. Create Course Ref and Data
       const courseRef = doc(collection(firestore, "courses"));
-      batch.set(courseRef, {
+      const courseData = {
         id: courseRef.id,
         title: course.title,
         description: course.description,
         difficulty: difficulty,
         competency: form.getValues('topic'),
-      });
+      };
+      batch.set(courseRef, courseData);
   
       // 2. Create general questions
-      const questionIds = [];
       if (course.questions && course.questions.length > 0) {
         for (const q of course.questions) {
           const questionRef = doc(collection(firestore, "questions"));
@@ -94,7 +94,6 @@ export default function AiCourseCreatorPage() {
             correctAnswer: q.answer,
             difficulty: q.difficulty,
           });
-          questionIds.push(questionRef.id);
         }
       }
   
@@ -110,22 +109,22 @@ export default function AiCourseCreatorPage() {
             
             for (const quizItem of lesson.quiz) {
               const quizQuestionRef = doc(collection(firestore, 'questions'));
+              quizQuestionIds.push(quizQuestionRef.id);
               batch.set(quizQuestionRef, {
                 id: quizQuestionRef.id,
                 stem: quizItem.stem,
                 options: quizItem.options,
                 correctAnswer: quizItem.answer,
-                difficulty: difficulty, // Use overall course difficulty for quiz questions
+                difficulty: difficulty, // Use overall course difficulty
               });
-              quizQuestionIds.push(quizQuestionRef.id);
             }
   
             const quizRef = doc(collection(firestore, 'quizzes'));
+            quizId = quizRef.id;
             batch.set(quizRef, {
               id: quizRef.id,
               questionIds: quizQuestionIds,
             });
-            quizId = quizRef.id;
           }
           
           // Set lesson data with courseId and optional quizId
@@ -308,3 +307,5 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
+
+    
