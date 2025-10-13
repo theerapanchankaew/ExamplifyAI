@@ -41,16 +41,14 @@ export function DashboardNav() {
     <SidebarMenu>
       {navItems.map((item) => (
         <SidebarMenuItem key={item.href}>
-          <Link href={item.href} legacyBehavior passHref>
+          <Link href={item.href} passHref>
             <SidebarMenuButton
+              as="a"
               isActive={pathname.startsWith(item.href) && (item.href === '/dashboard' ? pathname === item.href : true) }
               tooltip={{ children: item.label }}
-              asChild
             >
-              <a>
-                <item.icon />
-                <span>{item.label}</span>
-              </a>
+              <item.icon />
+              <span>{item.label}</span>
             </SidebarMenuButton>
           </Link>
         </SidebarMenuItem>
