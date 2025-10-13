@@ -65,12 +65,12 @@ export default function AiCourseCreatorPage() {
   }
 
   async function handleSaveCourse() {
-    if (!course) return;
+    if (!course || !firestore) return;
     setIsSaving(true);
     try {
       const batch = writeBatch(firestore);
 
-      // 1. Save questions and get their IDs
+      // 1. Save general questions and get their IDs
       const questionIds: string[] = [];
       for (const q of course.questions) {
         const questionRef = doc(collection(firestore, "questions"));
@@ -88,38 +88,44 @@ export default function AiCourseCreatorPage() {
       batch.set(courseRef, {
         title: course.title,
         difficulty: form.getValues('difficulty'),
-        competency: form.getValues('topic'), // Using topic as competency for now
+        competency: form.getValues('topic'), // Using topic as competency
       });
 
-      // 3. Save lessons and their quizzes
+      // 3. Save lessons, their quizzes, and quiz questions
       for (const lesson of course.lessons) {
         const lessonRef = doc(collection(firestore, "lessons"));
         const quizQuestionIds: string[] = [];
         
         // Save quiz questions for the lesson
-        for (const quizItem of lesson.quiz) {
-            const quizQuestionRef = doc(collection(firestore, 'questions'));
-            batch.set(quizQuestionRef, {
-                stem: quizItem.stem,
-                options: quizItem.options,
-                correctAnswer: quizItem.answer,
-                difficulty: form.getValues('difficulty'),
-            });
-            quizQuestionIds.push(quizQuestionRef.id);
+        if (lesson.quiz && lesson.quiz.length > 0) {
+          for (const quizItem of lesson.quiz) {
+              const quizQuestionRef = doc(collection(firestore, 'questions'));
+              batch.set(quizQuestionRef, {
+                  stem: quizItem.stem,
+                  options: quizItem.options,
+                  correctAnswer: quizItem.answer,
+                  difficulty: form.getValues('difficulty'), // Assign lesson difficulty
+              });
+              quizQuestionIds.push(quizQuestionRef.id);
+          }
         }
         
-        // Create quiz and get its ID
-        const quizRef = doc(collection(firestore, 'quizzes'));
-        batch.set(quizRef, {
-            questionIds: quizQuestionIds,
-        });
+        // Create a quiz document if there are questions for it
+        let quizId: string | null = null;
+        if (quizQuestionIds.length > 0) {
+            const quizRef = doc(collection(firestore, 'quizzes'));
+            batch.set(quizRef, {
+                questionIds: quizQuestionIds,
+            });
+            quizId = quizRef.id;
+        }
 
-        // Create lesson
+        // Create the lesson document
         batch.set(lessonRef, {
           courseId: courseRef.id,
           title: lesson.title,
           content: lesson.content,
-          quizId: quizRef.id,
+          ...(quizId && { quizId: quizId }), // Only add quizId if it exists
         });
       }
       
@@ -269,3 +275,5 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
+
+    
