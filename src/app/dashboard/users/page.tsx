@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -29,12 +30,12 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function UsersPage() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user: authUser, isUserLoading } = useUser();
   
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isUserLoading) return null;
+    if (!firestore || !authUser || isUserLoading) return null;
     return collection(firestore, 'users');
-  }, [firestore, user, isUserLoading]);
+  }, [firestore, authUser, isUserLoading]);
 
   const { data: users, isLoading: usersIsLoading } = useCollection<UserProfile>(usersQuery);
 
