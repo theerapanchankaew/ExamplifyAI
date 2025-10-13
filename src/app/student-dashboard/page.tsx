@@ -1,19 +1,18 @@
-
+'use client';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { PlaceHolderImages, type ImagePlaceholder } from "@/lib/placeholder-images";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 
-const featuredCourses = [
+const featuredCourses: (ImagePlaceholder | undefined)[] = [
   PlaceHolderImages.find(img => img.id === 'course-placeholder-1'),
   PlaceHolderImages.find(img => img.id === 'course-placeholder-2'),
   PlaceHolderImages.find(img => img.id === 'course-placeholder-3'),
-]
+];
 
 export default function StudentDashboardPage() {
   return (
@@ -39,8 +38,9 @@ export default function StudentDashboardPage() {
         <h2 className="text-2xl font-bold font-headline mb-4">Featured Courses</h2>
         <Carousel opts={{ align: "start", loop: true, }} className="w-full">
           <CarouselContent>
-            {featuredCourses.map((course, index) => (
-              course && (
+            {featuredCourses.map((course, index) => {
+              if (!course) return null;
+              return (
                 <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
                   <Card className="overflow-hidden">
                     <CardContent className="p-0">
@@ -54,7 +54,7 @@ export default function StudentDashboardPage() {
                   </Card>
                 </CarouselItem>
               )
-            ))}
+            })}
           </CarouselContent>
           <CarouselPrevious className="ml-12" />
           <CarouselNext className="mr-12" />
