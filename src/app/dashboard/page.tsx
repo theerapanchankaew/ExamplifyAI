@@ -63,7 +63,7 @@ export default function DashboardPage() {
   }, [firestore, authUser]);
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
-
+  
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
   const coursesQuery = useMemoFirebase(() => {
@@ -142,7 +142,6 @@ export default function DashboardPage() {
       const exam = examsMap.get(attempt.examId);
       const course = exam ? coursesMap.get(exam.courseId) : undefined;
       
-      // Since we cannot fetch all users, we will just use the userId
       return {
         ...attempt,
         userName: attempt.userId, // Fallback to userId
