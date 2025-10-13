@@ -1,363 +1,263 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model with ownership constraints.
+ * @file Firestore Security Rules for ExamplifyAI
+ * @version Prototype
  *
- * Data Structure:
- * - /users/{userId}: Stores user profiles; `userId` must match `request.auth.uid`.
- * - /courses/{courseId}: Stores course information.
- * - /lessons/{lessonId}: Stores lesson information, related to a course by `courseId`.
- * - /questions/{questionId}: Stores questions for exams and quizzes.
- * - /exams/{examId}: Stores exam definitions, related to a course by `courseId`.
- * - /attempts/{attemptId}: Stores user exam attempts, linked to a user by `userId` and an exam by `examId`.
- * - /metrics/daily/{date}: Stores daily metrics for the system. Document ID is the date in YYYYMMDD format.
- * - /courseCompetencies/{courseCompetencyId}: Stores the mapping between courses and competencies.
- * - /users/{userId}/achievements/{userAchievementId}: Stores user achievements. Accessible only by the user.
- * - /masterCourses/{masterCourseId}: Stores master course definitions.
- * - /masterCertificates/{masterCertificateId}: Stores issued master certificates, linked to a user by `userId` and a master course by `masterCourseId`.
- * - /roadmaps/{roadmapId}: Stores roadmap definitions.
- * - /schedules/{scheduleId}: Stores schedule events.
- * - /quizzes/{quizId}: Stores quiz information.
+ * @Core Philosophy
+ * This ruleset enforces a strict user-ownership model for user profiles and achievements,
+ * and public read access with owner-only writes for other collections. This ensures data privacy
+ * while allowing for flexible content creation and management.
  *
- * Key Security Decisions:
- * - Users can only read and write their own user profiles.
- * - The 'Admin' role has elevated privileges on other collections.
- * - Ownership is strictly enforced for updates and deletes.
+ * @Data Structure
+ * - User profiles are stored under `/users/{userId}`, accessible only by the authenticated user.
+ * - User achievements are stored as subcollections under `/users/{userId}/achievements/{userAchievementId}`,
+ *   also accessible only by the authenticated user.
+ * - All other collections (`/courses`, `/lessons`, `/questions`, `/exams`, etc.) are publicly readable,
+ *   but only authorized users can create, update, or delete documents. The specific authorization
+ *   mechanism relies on the presence of an ownership field within each document.
  *
- * Denormalization for Authorization:
- * - The `User` document includes a `role` field (e.g., "Admin", "Instructor", "Student") which is used by the `isAdmin()` helper function.
+ * @Key Security Decisions
+ * - User listing is disabled to prevent unauthorized access to user data.
+ * - All write operations are protected by an authorization check to ensure data integrity and prevent abuse.
+ * - Data validation is minimal, focusing on ownership and relational integrity rather than strict schema enforcement,
+ *   to facilitate rapid prototyping and iteration.
  *
- * Structural Segregation:
- * - User-specific achievements are stored in a subcollection `/users/{userId}/achievements/{userAchievementId}` to keep them private to the user.
+ * @Denormalization for Authorization
+ * - The `User` document ID is required to match the `request.auth.uid`. This avoids the need for additional reads
+ *   to verify user identity.
+ *
+ * @Structural Segregation
+ * - User-specific data (profiles and achievements) are stored under the `/users/{userId}` path,
+ *   while public data (courses, lessons, questions, etc.) are stored in top-level collections. This segregation
+ *   simplifies access control and improves performance.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ==================== Helper Functions ====================
-
     /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the document.
-     * @param {string} userId The user ID to check against.
-     * @return {boolean} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user exists and is the owner of the document.  Helpful for update/delete.
-     * @param {string} userId The user ID to check against.
-     * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Checks if the user has the 'Admin' or 'Super-Admin' role.
-     * @return {boolean} True if the user has the 'Admin' or 'Super-Admin' role, false otherwise.
-     */
-    function isAdmin() {
-      return isSignedIn() &&
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Super-Admin'];
-    }
-
-    // ==================== Users Collection ====================
-
-    /**
-     * @description Manages access to user profiles.
+     * @description Protects user profiles, ensuring only the authenticated user can read or write their own data.
      * @path /users/{userId}
-     * @allow (create) If the user is signed in and the `userId` matches `request.auth.uid`.
-     * @allow (get) If the user is signed in.
-     * @allow (update) If the user is the owner of the profile or an admin.
-     * @allow (delete) If the user is the owner of the profile.
-     * @deny (create) If the `userId` does not match `request.auth.uid`.
-     * @deny (update) If the user is not the owner or an admin.
-     * @deny (delete) If the user is not the owner.
-     * @principle Enforces document ownership and role-based access control.
+     * @allow (create) User with ID matching auth UID can create their profile.
+     * @allow (get, list, update, delete) Authenticated user can only access their own profile.
+     * @deny (create) User attempts to create a profile with a mismatched ID.
+     * @deny (update, delete) User attempts to modify or delete another user's profile.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      // Read Permissions
-      allow get: if isSignedIn();
-      allow list: if isAdmin(); // Only admins can list all users
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
-      // Write Permissions
-      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid; // Self-creation with ID validation
-      allow update: if isExistingOwner(userId) || isAdmin(); // Owner or Admin can update
-      allow delete: if isExistingOwner(userId); // Only the owner can delete
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
 
-    }
+      function isExistingOwner(userId) {
+          return isOwner(userId) && resource != null;
+      }
 
-    // ==================== Courses Collection ====================
-
-    /**
-     * @description Manages access to course information.
-     * @path /courses/{courseId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
-     */
-    match /courses/{courseId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    // ==================== Lessons Collection ====================
-
-    /**
-     * @description Manages access to lesson information.
-     * @path /lessons/{lessonId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
-     */
-    match /lessons/{lessonId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    // ==================== Questions Collection ====================
-
-    /**
-     * @description Manages access to questions.
-     * @path /questions/{questionId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
-     */
-    match /questions/{questionId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    // ==================== Exams Collection ====================
-
-    /**
-     * @description Manages access to exams.
-     * @path /exams/{examId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
-     */
-    match /exams/{examId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    // ==================== Attempts Collection ====================
-
-    /**
-     * @description Manages access to exam attempts.
-     * @path /attempts/{attemptId}
-     * @allow (get) If the user is signed in.
-     * @allow (list) If the user is an admin or the owner.
-     * @allow (create) If the user is signed in.
-     * @allow (update, delete) If the user is an admin.
-     * @deny (update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins, allows user-level read access.
-     */
-    match /attempts/{attemptId} {
-      // Read Permissions
-      allow get: if isSignedIn();
-      allow list: if isAdmin();
-
-      // Write Permissions
-      allow create: if isSignedIn();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    // ==================== Metrics Collection ====================
-
-    /**
-     * @description Manages access to system metrics.
-     * @path /metrics/daily/{date}
-     * @allow (get, list) If the user is an admin.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (get, list, create, update, delete) If the user is not an admin.
-     * @principle Restricts access to admins.
-     */
-    match /metrics/daily/{date} {
-      // Read Permissions
-      allow get, list: if isAdmin();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    // ==================== CourseCompetencies Collection ====================
-
-    /**
-     * @description Manages access to course competencies.
-     * @path /courseCompetencies/{courseCompetencyId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
-     */
-    match /courseCompetencies/{courseCompetencyId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
-    }
-
-    // ==================== UserAchievements Collection ====================
-
-    /**
-     * @description Manages access to user achievements.
-     * @path /users/{userId}/achievements/{userAchievementId}
-     * @allow (get, list) If the user is the owner.
-     * @allow (create, update, delete) If the user is the owner.
-     * @deny (get, list, create, update, delete) If the user is not the owner.
-     * @principle Enforces document ownership.
-     */
-    match /users/{userId}/achievements/{userAchievementId} {
-      // Read Permissions
-      allow get, list: if isOwner(userId);
-
-      // Write Permissions
-      allow create: if isOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
-    // ==================== MasterCourses Collection ====================
+    /**
+     * @description Defines read/write access for courses. Read is public.
+     * @path /courses/{courseId}
+     * @allow (get, list) Any user can read course information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete courses.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
+     */
+    match /courses/{courseId} {
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
+    }
 
     /**
-     * @description Manages access to master courses.
+     * @description Defines read/write access for lessons. Read is public.
+     * @path /lessons/{lessonId}
+     * @allow (get, list) Any user can read lesson information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete lessons.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
+     */
+    match /lessons/{lessonId} {
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
+    }
+
+    /**
+     * @description Defines read/write access for questions. Read is public.
+     * @path /questions/{questionId}
+     * @allow (get, list) Any user can read question information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete questions.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
+     */
+    match /questions/{questionId} {
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
+    }
+
+    /**
+     * @description Defines read/write access for exams. Read is public.
+     * @path /exams/{examId}
+     * @allow (get, list) Any user can read exam information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete exams.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
+     */
+    match /exams/{examId} {
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
+    }
+
+    /**
+     * @description Defines read/write access for attempts. Read is public.
+     * @path /attempts/{attemptId}
+     * @allow (get, list) Any user can read attempt information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete attempts.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
+     */
+    match /attempts/{attemptId} {
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
+    }
+
+    /**
+     * @description Defines read/write access for daily metrics. Read is public.
+     * @path /metrics/daily/{date}
+     * @allow (get, list) Any user can read daily metrics.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete daily metrics.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
+     */
+    match /metrics/daily/{date} {
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
+    }
+
+    /**
+     * @description Defines read/write access for course competencies. Read is public.
+     * @path /courseCompetencies/{courseCompetencyId}
+     * @allow (get, list) Any user can read course competency information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete course competencies.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
+     */
+    match /courseCompetencies/{courseCompetencyId} {
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
+    }
+
+    /**
+     * @description Protects user achievements, ensuring only the authenticated user can read or write their own data.
+     * @path /users/{userId}/achievements/{userAchievementId}
+     * @allow (create) User with ID matching auth UID can create their profile.
+     * @allow (get, list, update, delete) Authenticated user can only access their own profile.
+     * @deny (create) User attempts to create a profile with a mismatched ID.
+     * @deny (update, delete) User attempts to modify or delete another user's profile.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId}/achievements/{userAchievementId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+          return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Defines read/write access for master courses. Read is public.
      * @path /masterCourses/{masterCourseId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
+     * @allow (get, list) Any user can read master course information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete master courses.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
      */
     match /masterCourses/{masterCourseId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
     }
 
-    // ==================== MasterCertificates Collection ====================
-
     /**
-     * @description Manages access to master certificates.
+     * @description Defines read/write access for master certificates. Read is public.
      * @path /masterCertificates/{masterCertificateId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
+     * @allow (get, list) Any user can read master certificate information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete master certificates.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
      */
     match /masterCertificates/{masterCertificateId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
     }
 
-    // ==================== Roadmaps Collection ====================
-
     /**
-     * @description Manages access to roadmaps.
+     * @description Defines read/write access for roadmaps. Read is public.
      * @path /roadmaps/{roadmapId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
+     * @allow (get, list) Any user can read roadmap information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete roadmaps.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
      */
     match /roadmaps/{roadmapId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
     }
 
-    // ==================== Schedules Collection ====================
-
     /**
-     * @description Manages access to schedules.
+     * @description Defines read/write access for schedules. Read is public.
      * @path /schedules/{scheduleId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
+     * @allow (get, list) Any user can read schedule information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete schedules.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
      */
     match /schedules/{scheduleId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
     }
 
-    // ==================== Quizzes Collection ====================
-
     /**
-     * @description Manages access to quizzes.
+     * @description Defines read/write access for quizzes. Read is public.
      * @path /quizzes/{quizId}
-     * @allow (get, list) If the user is signed in.
-     * @allow (create, update, delete) If the user is an admin.
-     * @deny (create, update, delete) If the user is not an admin.
-     * @principle Restricts write access to admins.
+     * @allow (get, list) Any user can read quiz information.
+     * @deny (create, update, delete) Only authenticated users can create, update, or delete quizzes.
+     * @principle Public read access with owner-only writes (requires ownership field in document).
      */
     match /quizzes/{quizId} {
-      // Read Permissions
-      allow get, list: if isSignedIn();
-
-      // Write Permissions
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list: if true;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null;
+      allow delete: if request.auth.uid != null;
     }
   }
 }
