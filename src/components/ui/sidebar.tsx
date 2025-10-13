@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -68,6 +69,7 @@ const SidebarProvider = React.forwardRef<
     },
     ref
   ) => {
+    const isClient = useIsClient()
     const isMobile = useIsMobile()
     const [openMobile, setOpenMobile] = React.useState(false)
 
@@ -129,6 +131,10 @@ const SidebarProvider = React.forwardRef<
       }),
       [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
     )
+    
+    if (!isClient) {
+      return null
+    }
 
     return (
       <SidebarContext.Provider value={contextValue}>
