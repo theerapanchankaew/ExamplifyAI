@@ -48,7 +48,7 @@ export default function UsersPage() {
   }
 
   const getRoleVariant = (role: string) => {
-    switch (role.toLowerCase()) {
+    switch (role?.toLowerCase()) {
       case 'admin':
         return 'default';
       case 'instructor':
@@ -92,7 +92,7 @@ export default function UsersPage() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar>
-                              <AvatarImage src={avatar.imageUrl} alt={user.name} data-ai-hint={avatar.imageHint} />
+                              <AvatarImage src={avatar.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar.imageHint} />
                               <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
                             </Avatar>
                             <span className="font-medium">{user.name || 'N/A'}</span>
@@ -101,7 +101,7 @@ export default function UsersPage() {
                         <TableCell>{user.email || 'N/A'}</TableCell>
                         <TableCell>
                           <Badge variant={getRoleVariant(user.role)}>
-                            {user.role}
+                            {user.role || 'N/A'}
                           </Badge>
                         </TableCell>
                       </TableRow>
