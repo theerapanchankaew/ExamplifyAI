@@ -1,4 +1,5 @@
 
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -39,19 +40,20 @@ export default function StudentDashboardPage() {
         <Carousel opts={{ align: "start", loop: true, }} className="w-full">
           <CarouselContent>
             {featuredCourses.map((course, index) => (
-              course &&
-              <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
-                <Card className="overflow-hidden">
-                  <CardContent className="p-0">
-                    <Image src={course.imageUrl} alt={course.description} width={600} height={400} className="w-full aspect-video object-cover" data-ai-hint={course.imageHint} />
-                    <div className="p-4">
-                      <h3 className="font-semibold">Course Title {index + 1}</h3>
-                      <p className="text-sm text-muted-foreground mt-1">A brief description of the course content goes here.</p>
-                      <Button className="w-full mt-4">Enroll Now</Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </CarouselItem>
+              course && (
+                <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
+                  <Card className="overflow-hidden">
+                    <CardContent className="p-0">
+                      <Image src={course.imageUrl} alt={course.description} width={600} height={400} className="w-full aspect-video object-cover" data-ai-hint={course.imageHint} />
+                      <div className="p-4">
+                        <h3 className="font-semibold">Course Title {index + 1}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">A brief description of the course content goes here.</p>
+                        <Button className="w-full mt-4">Enroll Now</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </CarouselItem>
+              )
             ))}
           </CarouselContent>
           <CarouselPrevious className="ml-12" />
@@ -88,7 +90,7 @@ export default function StudentDashboardPage() {
           </CardHeader>
           <CardContent className="flex-grow">
             <p className="text-muted-foreground">Access your score reports, earned certificates, and official qualifications.</p>
-          </Content>
+          </CardContent>
           <div className="p-6 pt-0">
             <Link href="/student-dashboard/my-history" passHref><Button className="w-full">View My History</Button></Link>
           </div>

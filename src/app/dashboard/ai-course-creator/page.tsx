@@ -72,74 +72,64 @@ export default function AiCourseCreatorPage() {
       const difficulty = form.getValues('difficulty');
       const topic = form.getValues('topic');
   
-      // 1. Create Course Ref
+      // 1. Create Course Ref and get its ID
       const courseRef = doc(collection(firestore, "courses"));
   
-      // 2. Create and batch write all general Questions
-      const questionRefs = course.questions.map(() => doc(collection(firestore, "questions")));
-      course.questions.forEach((q, index) => {
-        const questionRef = questionRefs[index];
+      // 2. Create and batch write all general Questions for the main exam
+      const questionIds = course.questions.map((q) => {
+        const questionRef = doc(collection(firestore, "questions"));
         batch.set(questionRef, {
-          // id: questionRef.id, // ID is already on the ref
           stem: q.stem,
           options: q.options,
           correctAnswer: q.answer,
           difficulty: q.difficulty,
         });
+        return questionRef.id;
       });
   
-      // 3. Prepare lessons and their related quizzes/questions refs
-      const lessonWrites = course.lessons.map(lessonData => {
+      // 3. Prepare lessons and their related quizzes/questions
+      const lessonWritesPromises = course.lessons.map(async (lessonData) => {
         const lessonRef = doc(collection(firestore, "lessons"));
         let quizId: string | null = null;
-        let quizQuestionIds: string[] = [];
   
         if (lessonData.quiz && lessonData.quiz.length > 0) {
           const quizRef = doc(collection(firestore, "quizzes"));
           quizId = quizRef.id;
   
-          const quizQuestionRefs = lessonData.quiz.map(() => doc(collection(firestore, "questions")));
-          quizQuestionIds = quizQuestionRefs.map(ref => ref.id);
-  
-          lessonData.quiz.forEach((quizItem, index) => {
-            const quizQuestionRef = quizQuestionRefs[index];
+          const quizQuestionIds = lessonData.quiz.map((quizItem) => {
+            const quizQuestionRef = doc(collection(firestore, "questions"));
             batch.set(quizQuestionRef, {
-              // id: quizQuestionRef.id,
               stem: quizItem.stem,
               options: quizItem.options,
               correctAnswer: quizItem.answer,
-              difficulty: difficulty, 
+              difficulty: difficulty, // Use course difficulty for quiz questions
             });
+            return quizQuestionRef.id;
           });
   
           batch.set(quizRef, {
-            // id: quizId,
+            id: quizId,
             questionIds: quizQuestionIds,
           });
         }
   
-        return {
-          ref: lessonRef,
-          data: {
-            // id: lessonRef.id,
-            courseId: courseRef.id,
-            title: lessonData.title,
-            content: lessonData.content,
-            ...(quizId && { quizId: quizId }),
-          }
-        };
+        batch.set(lessonRef, {
+          courseId: courseRef.id,
+          title: lessonData.title,
+          content: lessonData.content,
+          ...(quizId && { quizId: quizId }),
+        });
       });
-  
-      lessonWrites.forEach(lw => batch.set(lw.ref, lw.data));
+      
+      await Promise.all(lessonWritesPromises);
   
       // 4. Batch write the main course document
       batch.set(courseRef, {
-        // id: courseRef.id,
         title: course.title,
         description: course.description,
         difficulty: difficulty,
         competency: topic,
-        questionIds: questionRefs.map(ref => ref.id),
+        questionIds: questionIds, // Store the array of question IDs
       });
   
       // 5. Commit the entire batch
