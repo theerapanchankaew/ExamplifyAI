@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useMemoFirebase } from "@/firebase/provider"
@@ -51,33 +52,33 @@ export default function DashboardPage() {
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return collection(firestore, 'users');
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: users, isLoading: usersLoading } = useCollection(usersQuery);
 
   const coursesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return collection(firestore, 'courses');
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: courses, isLoading: coursesLoading } = useCollection(coursesQuery);
 
   const attemptsTodayQuery = useMemoFirebase(() => {
-    if (!firestore) return null; 
+    if (!firestore || !user) return null; 
     return query(collection(firestore, 'attempts'), where('timestamp', '>=', Timestamp.fromDate(todayStart)));
-  }, [firestore, todayStart]);
+  }, [firestore, user, todayStart]);
   const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection<Attempt>(attemptsTodayQuery);
 
   const recentAttemptsQuery = useMemoFirebase(() => {
-    if (!firestore) return null; 
+    if (!firestore || !user) return null; 
     return query(collection(firestore, 'attempts'), orderBy('timestamp', 'desc'), limit(5));
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: recentAttempts, isLoading: recentAttemptsLoading } = useCollection<Attempt>(recentAttemptsQuery);
 
   const allAttemptsQuery = useMemoFirebase(() => {
-      if(!firestore) return null;
+      if(!firestore || !user) return null;
       return collection(firestore, 'attempts');
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: allAttempts, isLoading: allAttemptsLoading } = useCollection<Attempt>(allAttemptsQuery);
 
 
@@ -125,7 +126,7 @@ export default function DashboardPage() {
     { title: "Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
   ];
 
-  if (isLoading) {
+  if (isLoading || isUserLoading) {
     return (
       <div className="flex h-full min-h-[80vh] items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
