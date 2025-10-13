@@ -1,226 +1,233 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for user-specific data and allows public read access for certain collections.
+ * @fileoverview Firestore Security Rules for ExamplifyAI.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user profiles and achievements.
+ * Other collections (courses, lessons, questions, exams, etc.) are publicly readable but only writable by authorized users (e.g., admins - not yet implemented).
  *
  * Data Structure:
- * - Users: `/users/{userId}` - User profiles, owned by the user.
- * - User Achievements: `/users/{userId}/achievements/{achievementId}` - Achievements for a user, owned by the user.
- * - Courses: `/courses/{courseId}` - Publicly readable course data.
- * - Lessons: `/lessons/{lessonId}` - Publicly readable lesson data.
- * - Questions: `/questions/{questionId}` - Publicly readable question data.
- * - Exams: `/exams/{examId}` - Publicly readable exam data.
- * - Attempts: `/attempts/{attemptId}` - Publicly readable attempt data.
- * - Daily Metrics: `/metrics/daily/{date}` - Publicly readable metrics data.
- * - Course Competencies: `/courseCompetencies/{courseCompetencyId}` - Publicly readable course competency data.
- * - Master Courses: `/masterCourses/{masterCourseId}` - Publicly readable master course data.
- * - Master Certificates: `/masterCertificates/{masterCertificateId}` - Publicly readable master certificate data.
- * - Roadmaps: `/roadmaps/{roadmapId}` - Publicly readable roadmap data.
- * - Schedules: `/schedules/{scheduleId}` - Publicly readable schedule data.
- * - Quizzes: `/quizzes/{quizId}` - Publicly readable quiz data.
+ * - User profiles are stored under `/users/{userId}`, where `{userId}` must match the authenticated user's UID.
+ * - User achievements are stored under `/users/{userId}/achievements/{achievementId}`, accessible only by the owning user.
+ * - Other collections are top-level (e.g., `/courses/{courseId}`).
  *
  * Key Security Decisions:
- * - User data is strictly controlled by the user; only the authenticated user can create, read, update, or delete their own profile and achievements.
- * - All top-level collections such as courses, lessons, questions, exams, attempts, daily metrics, course competencies, master courses, master certificates, roadmaps, schedules and quizzes are publicly readable. Write access is not defined and must be secured later.
- * - Listing of users is disallowed. This protects against unauthorized enumeration of user accounts.
+ * - Listing all users (`/users`) is explicitly denied to prevent information leakage.
+ * - Data validation is minimized in the interest of rapid prototyping.  Only authorization-critical fields are validated.
+ *
+ * Denormalization for Authorization:
+ * To avoid `get()` calls in rules, critical authorization data (e.g., ownerId) should be denormalized directly onto documents.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is made by the authenticated user.
-     * @param {string} userId - The user ID to check against.
-     * @returns {boolean} True if the user ID matches the authenticated user's UID, false otherwise.
+     * @description Checks if the request is authenticated.
+     * @returns {boolean} True if the user is signed in, false otherwise.
      */
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+    function isSignedIn() {
+      return request.auth != null;
     }
 
     /**
-     * @description Checks if the request is made by the authenticated user and the resource exists.
-     * @param {string} userId - The user ID to check against.
-     * @returns {boolean} True if the user ID matches the authenticated user's UID and the resource exists, false otherwise.
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @param {string} userId - The user ID to compare against the authenticated user's UID.
+     * @returns {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the existing document.
+     * @param {string} userId - The user ID to compare against the authenticated user's UID.
+     * @returns {boolean} True if the user is the existing owner, false otherwise.
      */
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
 
     /**
-     * @description User profiles are only accessible to the authenticated user.
+     * @description Rules for user profiles.
      * @path /users/{userId}
-     * @allow (create) - If the user is authenticated and the userId matches the authenticated user's UID.
-     * @allow (get, update, delete) - If the user is authenticated and the userId matches the authenticated user's UID.
-     * @deny (create) - If the user is not authenticated or the userId does not match the authenticated user's UID.
-     * @deny (get, update, delete) - If the user is not authenticated or the userId does not match the authenticated user's UID.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - Authenticated user creates their profile with matching userId.
+     * @allow (get, update, delete) - Authenticated user accesses their own profile.
+     * @deny (list) - Prevents listing all user profiles.
+     * @deny (create, update, delete) - When the authenticated user does not match the userId.
+     * @principle Enforces user-ownership for profile data.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Stores user achievements. Accessible only by the user.
-     * @path /users/{userId}/achievements/{userAchievementId}
-     * @allow (create) - If the user is authenticated and the userId matches the authenticated user's UID.
-     * @allow (get, update, delete) - If the user is authenticated and the userId matches the authenticated user's UID.
-     * @deny (create) - If the user is not authenticated or the userId does not match the authenticated user's UID.
-     * @deny (get, update, delete) - If the user is not authenticated or the userId does not match the authenticated user's UID.
-     * @principle Restricts access to a user's own data tree.
-     */
-    match /users/{userId}/achievements/{userAchievementId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
+      // Only allow creating a user document if the authenticated user's ID matches the document ID.
       allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      // Only allow reading a user document if the authenticated user's ID matches the document ID.
+      allow get: if isOwner(userId);
+      // Only allow updating a user document if the authenticated user's ID matches the document ID and the userId is immutable.
       allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      // Only allow deleting a user document if the authenticated user's ID matches the document ID.
       allow delete: if isExistingOwner(userId);
+      // Do not allow listing all users.
+      allow list: if false;
     }
 
     /**
-     * @description Stores course information.
+     * @description Rules for courses.
      * @path /courses/{courseId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read course information.
+     * @deny (create, update, delete) - Only authorized users can modify course information.
+     * @principle Public read, restricted write.
      */
     match /courses/{courseId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores lesson information, related to a course by `courseId`.
+     * @description Rules for lessons.
      * @path /lessons/{lessonId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read lesson information.
+     * @deny (create, update, delete) - Only authorized users can modify lesson information.
+     * @principle Public read, restricted write.
      */
     match /lessons/{lessonId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores questions for exams and quizzes.
+     * @description Rules for questions.
      * @path /questions/{questionId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read question information.
+     * @deny (create, update, delete) - Only authorized users can modify question information.
+     * @principle Public read, restricted write.
      */
     match /questions/{questionId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores exam definitions, related to a course by `courseId`.
+     * @description Rules for exams.
      * @path /exams/{examId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read exam information.
+     * @deny (create, update, delete) - Only authorized users can modify exam information.
+     * @principle Public read, restricted write.
      */
     match /exams/{examId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores user exam attempts, linked to a user by `userId` and an exam by `examId`.
+     * @description Rules for attempts.
      * @path /attempts/{attemptId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read attempt information.
+     * @deny (create, update, delete) - Only authorized users can modify attempt information.
+     * @principle Public read, restricted write.
      */
     match /attempts/{attemptId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores daily metrics for the system. Document ID is the date in YYYYMMDD format.
+     * @description Rules for daily metrics.
      * @path /metrics/daily/{date}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read daily metrics.
+     * @deny (create, update, delete) - Only authorized users can modify daily metrics.
+     * @principle Public read, restricted write.
      */
     match /metrics/daily/{date} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin role check
     }
 
     /**
-     * @description Stores the mapping between courses and competencies.
+     * @description Rules for course competencies.
      * @path /courseCompetencies/{courseCompetencyId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read course competency information.
+     * @deny (create, update, delete) - Only authorized users can modify course competency information.
+     * @principle Public read, restricted write.
      */
     match /courseCompetencies/{courseCompetencyId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores master course definitions.
+     * @description Rules for user achievements.
+     * @path /users/{userId}/achievements/{userAchievementId}
+     * @allow (create) - Authenticated user creates their own achievement.
+     * @allow (get, update, delete) - Authenticated user accesses their own achievements.
+     * @deny (list) - Prevents listing other users' achievements.
+     * @deny (create, update, delete) - When the authenticated user does not match the userId.
+     * @principle Enforces user-ownership for achievement data.
+     */
+    match /users/{userId}/achievements/{userAchievementId} {
+      allow create: if isOwner(userId);
+      allow get: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+      allow list: if isOwner(userId);
+    }
+
+    /**
+     * @description Rules for master courses.
      * @path /masterCourses/{masterCourseId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read master course information.
+     * @deny (create, update, delete) - Only authorized users can modify master course information.
+     * @principle Public read, restricted write.
      */
     match /masterCourses/{masterCourseId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores issued master certificates, linked to a user by `userId` and a master course by `masterCourseId`.
+     * @description Rules for master certificates.
      * @path /masterCertificates/{masterCertificateId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read master certificate information.
+     * @deny (create, update, delete) - Only authorized users can modify master certificate information.
+     * @principle Public read, restricted write.
      */
     match /masterCertificates/{masterCertificateId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin role check
     }
 
     /**
-     * @description Stores roadmap definitions.
+     * @description Rules for roadmaps.
      * @path /roadmaps/{roadmapId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read roadmap information.
+     * @deny (create, update, delete) - Only authorized users can modify roadmap information.
+     * @principle Public read, restricted write.
      */
     match /roadmaps/{roadmapId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores schedule events.
+     * @description Rules for schedules.
      * @path /schedules/{scheduleId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read schedule information.
+     * @deny (create, update, delete) - Only authorized users can modify schedule information.
+     * @principle Public read, restricted write.
      */
     match /schedules/{scheduleId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
 
     /**
-     * @description Stores quiz information.
+     * @description Rules for quizzes.
      * @path /quizzes/{quizId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access is allowed.
-     * @principle Public read access with no write access control.
+     * @allow (get, list) - Anyone can read quiz information.
+     * @deny (create, update, delete) - Only authorized users can modify quiz information.
+     * @principle Public read, restricted write.
      */
     match /quizzes/{quizId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if false; // TODO: Add admin/instructor role check
     }
   }
 }
