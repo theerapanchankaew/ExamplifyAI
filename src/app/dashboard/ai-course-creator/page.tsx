@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState } from "react"
@@ -5,6 +6,9 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { generateCourseFromTopic, GenerateCourseFromTopicOutput } from "@/ai/flows/generate-course-from-topic"
+import { useFirestore } from "@/firebase"
+import { collection, addDoc, writeBatch, doc } from "firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -14,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Loader2 } from "lucide-react"
+import { Loader2, Save } from "lucide-react"
 
 const formSchema = z.object({
   topic: z.string().min(3, "Topic must be at least 3 characters long."),
@@ -26,9 +30,12 @@ const formSchema = z.object({
 })
 
 export default function AiCourseCreatorPage() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [course, setCourse] = useState<GenerateCourseFromTopicOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const firestore = useFirestore();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -43,7 +50,7 @@ export default function AiCourseCreatorPage() {
   })
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
+    setIsGenerating(true);
     setCourse(null);
     setError(null);
     try {
@@ -53,9 +60,90 @@ export default function AiCourseCreatorPage() {
       setError("Failed to generate course. Please try again.");
       console.error(e);
     } finally {
-      setIsLoading(false);
+      setIsGenerating(false);
     }
   }
+
+  async function handleSaveCourse() {
+    if (!course) return;
+    setIsSaving(true);
+    try {
+      const batch = writeBatch(firestore);
+
+      // 1. Save questions and get their IDs
+      const questionIds: string[] = [];
+      for (const q of course.questions) {
+        const questionRef = doc(collection(firestore, "questions"));
+        batch.set(questionRef, {
+          stem: q.stem,
+          options: q.options,
+          correctAnswer: q.answer,
+          difficulty: q.difficulty,
+        });
+        questionIds.push(questionRef.id);
+      }
+      
+      // 2. Save the main course document
+      const courseRef = doc(collection(firestore, "courses"));
+      batch.set(courseRef, {
+        title: course.title,
+        difficulty: form.getValues('difficulty'),
+        competency: form.getValues('topic'), // Using topic as competency for now
+      });
+
+      // 3. Save lessons and their quizzes
+      for (const lesson of course.lessons) {
+        const lessonRef = doc(collection(firestore, "lessons"));
+        const quizQuestionIds: string[] = [];
+        
+        // Save quiz questions for the lesson
+        for (const quizItem of lesson.quiz) {
+            const quizQuestionRef = doc(collection(firestore, 'questions'));
+            batch.set(quizQuestionRef, {
+                stem: quizItem.stem,
+                options: quizItem.options,
+                correctAnswer: quizItem.answer,
+                difficulty: form.getValues('difficulty'),
+            });
+            quizQuestionIds.push(quizQuestionRef.id);
+        }
+        
+        // Create quiz and get its ID
+        const quizRef = doc(collection(firestore, 'quizzes'));
+        batch.set(quizRef, {
+            questionIds: quizQuestionIds,
+        });
+
+        // Create lesson
+        batch.set(lessonRef, {
+          courseId: courseRef.id,
+          title: lesson.title,
+          content: lesson.content,
+          quizId: quizRef.id,
+        });
+      }
+      
+      await batch.commit();
+
+      toast({
+        title: "Course Saved!",
+        description: `"${course.title}" has been saved successfully.`,
+      });
+      setCourse(null);
+      form.reset();
+
+    } catch (e) {
+      console.error("Error saving course: ", e);
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem saving the course.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
 
   return (
     <div className="grid gap-8 lg:grid-cols-3">
@@ -120,8 +208,8 @@ export default function AiCourseCreatorPage() {
                   </FormItem>
                 )} />
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button type="submit" className="w-full" disabled={isGenerating}>
+                  {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Generate Course
                 </Button>
               </form>
@@ -130,7 +218,7 @@ export default function AiCourseCreatorPage() {
         </Card>
       </div>
       <div className="lg:col-span-2">
-        {isLoading && (
+        {isGenerating && (
           <div className="flex h-full min-h-[50vh] items-center justify-center rounded-lg border-2 border-dashed">
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -146,8 +234,16 @@ export default function AiCourseCreatorPage() {
         {course && (
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline text-2xl">{course.title}</CardTitle>
-              <CardDescription className="pt-2">{course.description}</CardDescription>
+                <div className="flex items-start justify-between">
+                    <div>
+                        <CardTitle className="font-headline text-2xl">{course.title}</CardTitle>
+                        <CardDescription className="pt-2">{course.description}</CardDescription>
+                    </div>
+                    <Button onClick={handleSaveCourse} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Course
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent>
               <h3 className="mb-4 text-lg font-semibold font-headline">Lessons</h3>
@@ -164,7 +260,7 @@ export default function AiCourseCreatorPage() {
             </CardContent>
           </Card>
         )}
-        {!isLoading && !course && !error && (
+        {!isGenerating && !course && !error && (
             <div className="flex h-full min-h-[50vh] items-center justify-center rounded-lg border-2 border-dashed">
                 <p className="text-center text-muted-foreground">Your generated course will appear here.</p>
             </div>
