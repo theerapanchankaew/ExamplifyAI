@@ -8,6 +8,7 @@ import Link from "next/link";
 import { PlaceHolderImages, type ImagePlaceholder } from "@/lib/placeholder-images";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { ShieldAlert } from "lucide-react";
+import { useIsClient } from "@/hooks/use-is-client";
 
 const featuredCourseIds = ['course-placeholder-1', 'course-placeholder-2', 'course-placeholder-3'];
 const featuredCourses: ImagePlaceholder[] = featuredCourseIds
@@ -15,6 +16,7 @@ const featuredCourses: ImagePlaceholder[] = featuredCourseIds
   .filter((course): course is ImagePlaceholder => course !== undefined);
 
 export default function StudentDashboardPage() {
+  const isClient = useIsClient();
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
@@ -37,28 +39,30 @@ export default function StudentDashboardPage() {
 
       <div>
         <h2 className="text-2xl font-bold font-headline mb-4">Featured Courses</h2>
-        <Carousel opts={{ align: "start", loop: true, }} className="w-full">
-          <CarouselContent>
-            {featuredCourses.map((course, index) => {
-              return (
-                <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
-                  <Card className="overflow-hidden">
-                    <CardContent className="p-0">
-                      <Image src={course.imageUrl} alt={course.description} width={600} height={400} className="w-full aspect-video object-cover" data-ai-hint={course.imageHint} />
-                      <div className="p-4">
-                        <h3 className="font-semibold">Course Title {index + 1}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">A brief description of the course content goes here.</p>
-                        <Button className="w-full mt-4">Enroll Now</Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </CarouselItem>
-              )
-            })}
-          </CarouselContent>
-          <CarouselPrevious className="ml-12" />
-          <CarouselNext className="mr-12" />
-        </Carousel>
+        {isClient && (
+          <Carousel opts={{ align: "start", loop: true, }} className="w-full">
+            <CarouselContent>
+              {featuredCourses.map((course, index) => {
+                return (
+                  <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
+                    <Card className="overflow-hidden">
+                      <CardContent className="p-0">
+                        <Image src={course.imageUrl} alt={course.description} width={600} height={400} className="w-full aspect-video object-cover" data-ai-hint={course.imageHint} />
+                        <div className="p-4">
+                          <h3 className="font-semibold">Course Title {index + 1}</h3>
+                          <p className="text-sm text-muted-foreground mt-1">A brief description of the course content goes here.</p>
+                          <Button className="w-full mt-4">Enroll Now</Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </CarouselItem>
+                );
+              })}
+            </CarouselContent>
+            <CarouselPrevious className="ml-12" />
+            <CarouselNext className="mr-12" />
+          </Carousel>
+        )}
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">

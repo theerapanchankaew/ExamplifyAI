@@ -88,7 +88,7 @@ export default function AiCourseCreatorPage() {
       });
   
       // 3. Prepare lessons and their related quizzes/questions
-      const lessonPromises = course.lessons.map((lessonData) => {
+      for (const lessonData of course.lessons) {
         const lessonRef = doc(collection(firestore, "lessons"));
         let quizId: string | null = null;
   
@@ -102,7 +102,7 @@ export default function AiCourseCreatorPage() {
               stem: quizItem.stem,
               options: quizItem.options,
               correctAnswer: quizItem.answer,
-              difficulty: difficulty,
+              difficulty: difficulty, // Use course difficulty for quiz questions
             });
             return quizQuestionRef.id;
           });
@@ -119,9 +119,7 @@ export default function AiCourseCreatorPage() {
           content: lessonData.content,
           ...(quizId && { quizId: quizId }),
         });
-      });
-  
-      await Promise.all(lessonPromises);
+      }
   
       // 4. Batch write the main exam document
       const examRef = doc(collection(firestore, "exams"));
@@ -133,6 +131,7 @@ export default function AiCourseCreatorPage() {
   
       // 5. Batch write the main course document
       batch.set(courseRef, {
+        id: courseRef.id,
         title: course.title,
         description: course.description,
         difficulty: difficulty,
