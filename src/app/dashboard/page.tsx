@@ -33,6 +33,7 @@ import type { Attempt, UserProfile } from "@/types"
 import type { Course } from '@/types/course'
 import { subDays, format, startOfDay } from 'date-fns'
 import { useMemo } from "react"
+import { PlaceHolderImages } from "@/lib/placeholder-images"
 
 const chartConfig = {
   attempts: {
@@ -48,7 +49,7 @@ const chartConfig = {
 type EnrichedAttempt = Attempt & {
   userName?: string;
   courseTitle?: string;
-  userAvatar?: string;
+  userAvatarUrl?: string;
 };
 
 export default function DashboardPage() {
@@ -58,39 +59,39 @@ export default function DashboardPage() {
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isUserLoading) return null;
+    if (!firestore || isUserLoading) return null;
     return collection(firestore, 'users');
-  }, [firestore, user, isUserLoading]);
+  }, [firestore, isUserLoading]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
   const coursesQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isUserLoading) return null;
+    if (!firestore || isUserLoading) return null;
     return collection(firestore, 'courses');
-  }, [firestore, user, isUserLoading]);
+  }, [firestore, isUserLoading]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
   const examsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isUserLoading) return null;
+    if (!firestore || isUserLoading) return null;
     return collection(firestore, 'exams');
-  }, [firestore, user, isUserLoading]);
-  const { data: exams, isLoading: examsLoading } = useCollection<{courseId: string}>(examsQuery);
+  }, [firestore, isUserLoading]);
+  const { data: exams, isLoading: examsLoading } = useCollection<{courseId: string, id: string}>(examsQuery);
 
   const attemptsTodayQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isUserLoading) return null; 
+    if (!firestore || isUserLoading) return null; 
     return query(collection(firestore, 'attempts'), where('timestamp', '>=', Timestamp.fromDate(todayStart)));
-  }, [firestore, user, isUserLoading, todayStart]);
+  }, [firestore, isUserLoading, todayStart]);
   const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection<Attempt>(attemptsTodayQuery);
 
   const recentAttemptsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isUserLoading) return null; 
+    if (!firestore || isUserLoading) return null; 
     return query(collection(firestore, 'attempts'), orderBy('timestamp', 'desc'), limit(5));
-  }, [firestore, user, isUserLoading]);
+  }, [firestore, isUserLoading]);
   const { data: recentAttempts, isLoading: recentAttemptsLoading } = useCollection<Attempt>(recentAttemptsQuery);
 
   const allAttemptsQuery = useMemoFirebase(() => {
-      if(!firestore || !user || isUserLoading) return null;
+      if(!firestore || isUserLoading) return null;
       return collection(firestore, 'attempts');
-  }, [firestore, user, isUserLoading]);
+  }, [firestore, isUserLoading]);
   const { data: allAttempts, isLoading: allAttemptsLoading } = useCollection<Attempt>(allAttemptsQuery);
 
   const passRate = useMemo(() => {
@@ -113,7 +114,8 @@ export default function DashboardPage() {
       
       const attemptsOnDate = allAttempts.filter(attempt => {
           if (!attempt.timestamp) return false;
-          const attemptDate = (attempt.timestamp as Timestamp).toDate();
+          const attemptDate = (attempt.timestamp as unknown as Timestamp)?.toDate();
+          if (!attemptDate) return false;
           return attemptDate >= date && attemptDate < nextDay;
       });
       
@@ -131,12 +133,13 @@ export default function DashboardPage() {
   const enrichedRecentAttempts = useMemo<EnrichedAttempt[]>(() => {
     if (!recentAttempts || !users || !courses || !exams) return [];
 
-    const usersMap = new Map(users.map(u => [u.id, u]));
+    const usersMap = new Map(users.map(u => [u.userId, u]));
     const coursesMap = new Map(courses.map(c => [c.id, c]));
     const examsMap = new Map(exams.map(e => [e.id, e]));
 
     return recentAttempts.map(attempt => {
       const user = usersMap.get(attempt.userId);
+      // The examId in the attempt collection might not exist in the exams collection
       const exam = examsMap.get(attempt.examId);
       const course = exam ? coursesMap.get(exam.courseId) : undefined;
       
@@ -144,6 +147,7 @@ export default function DashboardPage() {
         ...attempt,
         userName: user?.name || attempt.userId,
         courseTitle: course?.title || 'Unknown Course',
+        userAvatarUrl: user?.avatarUrl,
       };
     });
   }, [recentAttempts, users, courses, exams]);
@@ -156,6 +160,8 @@ export default function DashboardPage() {
     { title: "Attempts Today", value: attemptsToday?.length ?? '...', icon: CheckCircle },
     { title: "Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
   ];
+
+  const studentAvatarFallback = PlaceHolderImages.find(img => img.id === 'student-avatar-1');
 
   if (isLoading) {
     return (
@@ -223,6 +229,7 @@ export default function DashboardPage() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                            <Avatar className="h-9 w-9">
+                            <AvatarImage src={attempt.userAvatarUrl || studentAvatarFallback?.imageUrl} />
                             <AvatarFallback>{attempt.userName?.substring(0, 2) || '??'}</AvatarFallback>
                           </Avatar>
                           <span className="font-medium truncate w-32">{attempt.userName}</span>
@@ -246,5 +253,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-
-    

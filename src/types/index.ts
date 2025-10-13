@@ -10,6 +10,7 @@ export type UserProfile = {
   cabTokens?: number;
   mandatoryLearningPath?: string[];
   voluntaryLearningPath?: string[];
+  avatarUrl?: string;
 };
 
 // This mirrors the `Attempt` entity in backend.json

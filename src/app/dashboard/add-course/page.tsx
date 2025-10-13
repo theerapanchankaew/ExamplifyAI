@@ -91,7 +91,7 @@ export default function AiCourseCreatorPage() {
       });
   
       // 3. Prepare lessons and their related quizzes/questions
-      const lessonPromises = course.lessons.map(async (lessonData) => {
+      course.lessons.forEach((lessonData) => {
         const lessonRef = doc(collection(firestore, "lessons"));
         let quizId: string | null = null;
   
@@ -125,8 +125,6 @@ export default function AiCourseCreatorPage() {
           ...(quizId && { quizId: quizId }),
         });
       });
-
-      await Promise.all(lessonPromises);
   
       // 4. Batch write the main exam document
       const examRef = doc(collection(firestore, "exams"));
@@ -164,13 +162,6 @@ export default function AiCourseCreatorPage() {
         requestResourceData: course,
       });
       errorEmitter.emit('permission-error', permissionError);
-
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "There was a problem saving the course. Check the developer console for more details.",
-      });
-      console.error("Error saving course: ", e);
     } finally {
       setIsSaving(false);
     }
