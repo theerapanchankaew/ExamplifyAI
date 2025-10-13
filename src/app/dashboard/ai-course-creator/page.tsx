@@ -68,76 +68,87 @@ export default function AiCourseCreatorPage() {
     setIsSaving(true);
   
     try {
-        const batch = writeBatch(firestore);
-        const difficulty = form.getValues('difficulty');
-        const topic = form.getValues('topic');
-
-        // 1. Create Course Ref
-        const courseRef = doc(collection(firestore, "courses"));
-
-        // 2. Create and batch write all general Questions
-        const questionRefs = course.questions.map(() => doc(collection(firestore, "questions")));
-        course.questions.forEach((q, index) => {
-            const questionRef = questionRefs[index];
-            batch.set(questionRef, {
-                id: questionRef.id,
-                stem: q.stem,
-                options: q.options,
-                correctAnswer: q.answer,
-                difficulty: q.difficulty,
+      const batch = writeBatch(firestore);
+      const difficulty = form.getValues('difficulty');
+      const topic = form.getValues('topic');
+  
+      // 1. Create Course Ref
+      const courseRef = doc(collection(firestore, "courses"));
+  
+      // 2. Create and batch write all general Questions
+      const questionRefs = course.questions.map(() => doc(collection(firestore, "questions")));
+      course.questions.forEach((q, index) => {
+        const questionRef = questionRefs[index];
+        batch.set(questionRef, {
+          id: questionRef.id,
+          stem: q.stem,
+          options: q.options,
+          correctAnswer: q.answer,
+          difficulty: q.difficulty,
+        });
+      });
+  
+      // 3. Prepare lessons and their related quizzes/questions refs
+      const lessonWrites = course.lessons.map(lessonData => {
+        const lessonRef = doc(collection(firestore, "lessons"));
+        let quizId: string | null = null;
+        let quizQuestionIds: string[] = [];
+  
+        if (lessonData.quiz && lessonData.quiz.length > 0) {
+          const quizRef = doc(collection(firestore, "quizzes"));
+          quizId = quizRef.id;
+  
+          // Create refs for quiz questions first
+          const quizQuestionRefs = lessonData.quiz.map(() => doc(collection(firestore, "questions")));
+          quizQuestionIds = quizQuestionRefs.map(ref => ref.id);
+  
+          // Batch set quiz questions
+          lessonData.quiz.forEach((quizItem, index) => {
+            const quizQuestionRef = quizQuestionRefs[index];
+            batch.set(quizQuestionRef, {
+              id: quizQuestionRef.id,
+              stem: quizItem.stem,
+              options: quizItem.options,
+              correctAnswer: quizItem.answer,
+              difficulty: difficulty, 
             });
-        });
-
-        // 3. Prepare and batch write lessons and their related quizzes/questions
-        const lessonPromises = course.lessons.map(async (lessonData) => {
-            const lessonRef = doc(collection(firestore, "lessons"));
-            let quizId: string | null = null;
-
-            if (lessonData.quiz && lessonData.quiz.length > 0) {
-                const quizRef = doc(collection(firestore, "quizzes"));
-                quizId = quizRef.id;
-                const quizQuestionIds: string[] = [];
-
-                lessonData.quiz.forEach((quizItem) => {
-                    const quizQuestionRef = doc(collection(firestore, "questions"));
-                    quizQuestionIds.push(quizQuestionRef.id);
-                    batch.set(quizQuestionRef, {
-                        id: quizQuestionRef.id,
-                        stem: quizItem.stem,
-                        options: quizItem.options,
-                        correctAnswer: quizItem.answer,
-                        difficulty: difficulty, 
-                    });
-                });
-
-                batch.set(quizRef, {
-                    id: quizId,
-                    questionIds: quizQuestionIds,
-                });
-            }
-
-            batch.set(lessonRef, {
-                id: lessonRef.id,
-                courseId: courseRef.id,
-                title: lessonData.title,
-                content: lessonData.content,
-                ...(quizId && { quizId: quizId }),
-            });
-        });
-        
-        await Promise.all(lessonPromises);
-
-        // 4. Batch write the main course document
-        batch.set(courseRef, {
-            id: courseRef.id,
-            title: course.title,
-            description: course.description,
-            difficulty: difficulty,
-            competency: topic,
-        });
-
-        // 5. Commit the entire batch
-        await batch.commit();
+          });
+  
+          // Batch set the quiz doc itself
+          batch.set(quizRef, {
+            id: quizId,
+            questionIds: quizQuestionIds,
+          });
+        }
+  
+        // Return the data needed to set the lesson doc
+        return {
+          ref: lessonRef,
+          data: {
+            id: lessonRef.id,
+            courseId: courseRef.id,
+            title: lessonData.title,
+            content: lessonData.content,
+            ...(quizId && { quizId: quizId }),
+          }
+        };
+      });
+  
+      // Batch write the lessons
+      lessonWrites.forEach(lw => batch.set(lw.ref, lw.data));
+  
+      // 4. Batch write the main course document
+      batch.set(courseRef, {
+        id: courseRef.id,
+        title: course.title,
+        description: course.description,
+        difficulty: difficulty,
+        competency: topic,
+        questionIds: questionRefs.map(ref => ref.id), // Add general question IDs to course
+      });
+  
+      // 5. Commit the entire batch
+      await batch.commit();
   
       toast({
         title: "Course Saved!",
@@ -304,5 +315,4 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
-
     
