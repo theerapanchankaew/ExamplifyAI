@@ -88,7 +88,7 @@ export default function StudentDashboardPage() {
           </CardHeader>
           <CardContent className="flex-grow">
             <p className="text-muted-foreground">Access your score reports, earned certificates, and official qualifications.</p>
-          </CardContent>
+          </Content>
           <div className="p-6 pt-0">
             <Link href="/student-dashboard/my-history" passHref><Button className="w-full">View My History</Button></Link>
           </div>

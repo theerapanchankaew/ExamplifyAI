@@ -80,7 +80,7 @@ export default function AiCourseCreatorPage() {
       course.questions.forEach((q, index) => {
         const questionRef = questionRefs[index];
         batch.set(questionRef, {
-          id: questionRef.id,
+          // id: questionRef.id, // ID is already on the ref
           stem: q.stem,
           options: q.options,
           correctAnswer: q.answer,
@@ -98,15 +98,13 @@ export default function AiCourseCreatorPage() {
           const quizRef = doc(collection(firestore, "quizzes"));
           quizId = quizRef.id;
   
-          // Create refs for quiz questions first
           const quizQuestionRefs = lessonData.quiz.map(() => doc(collection(firestore, "questions")));
           quizQuestionIds = quizQuestionRefs.map(ref => ref.id);
   
-          // Batch set quiz questions
           lessonData.quiz.forEach((quizItem, index) => {
             const quizQuestionRef = quizQuestionRefs[index];
             batch.set(quizQuestionRef, {
-              id: quizQuestionRef.id,
+              // id: quizQuestionRef.id,
               stem: quizItem.stem,
               options: quizItem.options,
               correctAnswer: quizItem.answer,
@@ -114,18 +112,16 @@ export default function AiCourseCreatorPage() {
             });
           });
   
-          // Batch set the quiz doc itself
           batch.set(quizRef, {
-            id: quizId,
+            // id: quizId,
             questionIds: quizQuestionIds,
           });
         }
   
-        // Return the data needed to set the lesson doc
         return {
           ref: lessonRef,
           data: {
-            id: lessonRef.id,
+            // id: lessonRef.id,
             courseId: courseRef.id,
             title: lessonData.title,
             content: lessonData.content,
@@ -134,17 +130,16 @@ export default function AiCourseCreatorPage() {
         };
       });
   
-      // Batch write the lessons
       lessonWrites.forEach(lw => batch.set(lw.ref, lw.data));
   
       // 4. Batch write the main course document
       batch.set(courseRef, {
-        id: courseRef.id,
+        // id: courseRef.id,
         title: course.title,
         description: course.description,
         difficulty: difficulty,
         competency: topic,
-        questionIds: questionRefs.map(ref => ref.id), // Add general question IDs to course
+        questionIds: questionRefs.map(ref => ref.id),
       });
   
       // 5. Commit the entire batch
