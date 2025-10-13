@@ -28,7 +28,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Users, BookOpen, CheckCircle, Percent, Activity, Loader2 } from "lucide-react"
+import { BookOpen, CheckCircle, Percent, Activity, Loader2 } from "lucide-react"
 import type { Attempt, UserProfile } from "@/types"
 import type { Course } from '@/types/course'
 import { subDays, format, startOfDay } from 'date-fns'
