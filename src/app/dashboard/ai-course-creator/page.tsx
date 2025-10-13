@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { generateCourseFromTopic, GenerateCourseFromTopicOutput } from "@/ai/flows/generate-course-from-topic"
 import { useFirestore } from "@/firebase"
-import { collection, addDoc, writeBatch, doc } from "firebase/firestore"
+import { collection, writeBatch, doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 
 import { Button } from "@/components/ui/button"
@@ -72,9 +72,10 @@ export default function AiCourseCreatorPage() {
       const batch = writeBatch(firestore);
       const difficulty = form.getValues('difficulty');
   
-      // 1. Create a document reference for the new course.
+      // 1. Create a new course document reference with a unique ID.
       const courseRef = doc(collection(firestore, "courses"));
       batch.set(courseRef, {
+        id: courseRef.id,
         title: course.title,
         description: course.description,
         difficulty: difficulty,
@@ -86,6 +87,7 @@ export default function AiCourseCreatorPage() {
         for (const q of course.questions) {
           const questionRef = doc(collection(firestore, "questions"));
           batch.set(questionRef, {
+            id: questionRef.id,
             stem: q.stem,
             options: q.options,
             correctAnswer: q.answer,
@@ -99,7 +101,6 @@ export default function AiCourseCreatorPage() {
         for (const lesson of course.lessons) {
           // 3a. Create a reference for the new lesson document.
           const lessonRef = doc(collection(firestore, "lessons"));
-          
           let quizId: string | null = null;
   
           // 3b. If the lesson has a quiz, create all related quiz documents.
@@ -110,6 +111,7 @@ export default function AiCourseCreatorPage() {
             for (const quizItem of lesson.quiz) {
               const quizQuestionRef = doc(collection(firestore, 'questions'));
               batch.set(quizQuestionRef, {
+                id: quizQuestionRef.id,
                 stem: quizItem.stem,
                 options: quizItem.options,
                 correctAnswer: quizItem.answer,
@@ -121,6 +123,7 @@ export default function AiCourseCreatorPage() {
             // 3d. Create the quiz document itself.
             const quizRef = doc(collection(firestore, 'quizzes'));
             batch.set(quizRef, {
+              id: quizRef.id,
               questionIds: quizQuestionIds,
             });
             quizId = quizRef.id;
@@ -128,6 +131,7 @@ export default function AiCourseCreatorPage() {
           
           // 3e. Set the lesson data, including the generated courseId and optional quizId.
           batch.set(lessonRef, {
+            id: lessonRef.id,
             courseId: courseRef.id,
             title: lesson.title,
             content: lesson.content,
@@ -159,7 +163,6 @@ export default function AiCourseCreatorPage() {
       setIsSaving(false);
     }
   }
-
 
   return (
     <div className="grid gap-8 lg:grid-cols-3">
@@ -306,3 +309,5 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
+
+    
