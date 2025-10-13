@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState } from "react"
@@ -73,7 +72,7 @@ export default function AiCourseCreatorPage() {
       const difficulty = form.getValues('difficulty');
       const topic = form.getValues('topic');
 
-      // 1. Create Course Ref and Data
+      // 1. Create Course Document
       const courseRef = doc(collection(firestore, "courses"));
       batch.set(courseRef, {
         id: courseRef.id,
@@ -83,7 +82,7 @@ export default function AiCourseCreatorPage() {
         competency: topic,
       });
   
-      // 2. Create general questions (if any)
+      // 2. Create General Questions
       if (course.questions && course.questions.length > 0) {
         for (const q of course.questions) {
           const questionRef = doc(collection(firestore, "questions"));
@@ -97,13 +96,13 @@ export default function AiCourseCreatorPage() {
         }
       }
   
-      // 3. Create lessons and their quizzes (if any)
+      // 3. Create Lessons and Their Quizzes
       if (course.lessons && course.lessons.length > 0) {
         for (const lessonData of course.lessons) {
           const lessonRef = doc(collection(firestore, "lessons"));
           let quizId: string | null = null;
   
-          // If lesson has a quiz, create quiz and its questions
+          // Create Quiz and its Questions if they exist
           if (lessonData.quiz && lessonData.quiz.length > 0) {
             const quizRef = doc(collection(firestore, 'quizzes'));
             quizId = quizRef.id;
@@ -117,18 +116,17 @@ export default function AiCourseCreatorPage() {
                 stem: quizItem.stem,
                 options: quizItem.options,
                 correctAnswer: quizItem.answer,
-                difficulty: difficulty, // Use overall course difficulty for quiz questions
+                difficulty: difficulty, // Use overall course difficulty
               });
             }
-  
-            // Set quiz data with its question IDs
+            // Set Quiz document
             batch.set(quizRef, {
               id: quizRef.id,
               questionIds: quizQuestionIds,
             });
           }
           
-          // Set lesson data with courseId and optional quizId
+          // Set Lesson document
           batch.set(lessonRef, {
             id: lessonRef.id,
             courseId: courseRef.id,
