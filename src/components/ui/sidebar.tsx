@@ -324,6 +324,12 @@ const SidebarInset = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"main">
 >(({ className, ...props }, ref) => {
+  const isClient = useIsClient();
+
+  if (!isClient) {
+    return null;
+  }
+  
   return (
     <main
       ref={ref}
