@@ -68,91 +68,95 @@ export default function AiCourseCreatorPage() {
     if (!course || !firestore) return;
     setIsSaving(true);
     try {
-      const batch = writeBatch(firestore);
+        const batch = writeBatch(firestore);
 
-      // 1. Save general questions and get their IDs
-      const questionIds: string[] = [];
-      for (const q of course.questions) {
-        const questionRef = doc(collection(firestore, "questions"));
-        batch.set(questionRef, {
-          stem: q.stem,
-          options: q.options,
-          correctAnswer: q.answer,
-          difficulty: q.difficulty,
+        // 1. Create Course
+        const courseRef = doc(collection(firestore, "courses"));
+        batch.set(courseRef, {
+            title: course.title,
+            difficulty: form.getValues('difficulty'),
+            competency: form.getValues('topic'),
+            description: course.description,
         });
-        questionIds.push(questionRef.id);
-      }
-      
-      // 2. Save the main course document
-      const courseRef = doc(collection(firestore, "courses"));
-      batch.set(courseRef, {
-        id: courseRef.id,
-        title: course.title,
-        difficulty: form.getValues('difficulty'),
-        competency: form.getValues('topic'), // Using topic as competency
-      });
 
-      // 3. Save lessons, their quizzes, and quiz questions
-      for (const lesson of course.lessons) {
-        const lessonRef = doc(collection(firestore, "lessons"));
-        let quizId: string | null = null;
-        
-        // Save quiz questions for the lesson if they exist
-        if (lesson.quiz && lesson.quiz.length > 0) {
-            const quizQuestionIds: string[] = [];
-            for (const quizItem of lesson.quiz) {
-                const quizQuestionRef = doc(collection(firestore, 'questions'));
-                batch.set(quizQuestionRef, {
-                    id: quizQuestionRef.id,
-                    stem: quizItem.stem,
-                    options: quizItem.options,
-                    correctAnswer: quizItem.answer,
-                    difficulty: form.getValues('difficulty'), // Assign course difficulty
+        // 2. Create general questions
+        const questionIds: string[] = [];
+        if (course.questions) {
+            for (const q of course.questions) {
+                const questionRef = doc(collection(firestore, "questions"));
+                batch.set(questionRef, {
+                    stem: q.stem,
+                    options: q.options,
+                    correctAnswer: q.answer,
+                    difficulty: q.difficulty,
                 });
-                quizQuestionIds.push(quizQuestionRef.id);
-            }
-            
-            // Create a quiz document if there are questions for it
-            if (quizQuestionIds.length > 0) {
-                const quizRef = doc(collection(firestore, 'quizzes'));
-                batch.set(quizRef, {
-                    id: quizRef.id,
-                    questionIds: quizQuestionIds,
-                });
-                quizId = quizRef.id;
+                questionIds.push(questionRef.id);
             }
         }
-        
-        // Create the lesson document
-        batch.set(lessonRef, {
-          id: lessonRef.id,
-          courseId: courseRef.id,
-          title: lesson.title,
-          content: lesson.content,
-          ...(quizId && { quizId: quizId }), // Only add quizId if it exists
-        });
-      }
-      
-      await batch.commit();
 
-      toast({
-        title: "Course Saved!",
-        description: `"${course.title}" has been saved successfully.`,
-      });
-      setCourse(null);
-      form.reset();
+        // 3. Create lessons and their associated quizzes/questions
+        if (course.lessons) {
+            for (const lesson of course.lessons) {
+                const lessonRef = doc(collection(firestore, "lessons"));
+                let quizId: string | null = null;
+
+                // 3a. Check if lesson has a quiz
+                if (lesson.quiz && lesson.quiz.length > 0) {
+                    const quizQuestionIds: string[] = [];
+                    // Create questions for this specific quiz
+                    for (const quizItem of lesson.quiz) {
+                        const quizQuestionRef = doc(collection(firestore, 'questions'));
+                        batch.set(quizQuestionRef, {
+                            stem: quizItem.stem,
+                            options: quizItem.options,
+                            correctAnswer: quizItem.answer,
+                            difficulty: form.getValues('difficulty'), // Assign course difficulty
+                        });
+                        quizQuestionIds.push(quizQuestionRef.id);
+                    }
+
+                    // 3b. Create the quiz document with its question IDs
+                    const quizRef = doc(collection(firestore, 'quizzes'));
+                    batch.set(quizRef, {
+                        questionIds: quizQuestionIds,
+                    });
+                    quizId = quizRef.id;
+                }
+                
+                // 3c. Create the lesson document, linking course and quiz (if it exists)
+                const lessonData: any = {
+                    courseId: courseRef.id,
+                    title: lesson.title,
+                    content: lesson.content,
+                };
+                if (quizId) {
+                    lessonData.quizId = quizId;
+                }
+                batch.set(lessonRef, lessonData);
+            }
+        }
+
+        // 4. Commit all writes at once
+        await batch.commit();
+
+        toast({
+            title: "Course Saved!",
+            description: `"${course.title}" has been saved successfully.`,
+        });
+        setCourse(null);
+        form.reset();
 
     } catch (e) {
-      console.error("Error saving course: ", e);
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "There was a problem saving the course.",
-      });
+        console.error("Error saving course: ", e);
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Something went wrong.",
+            description: "There was a problem saving the course. Check console for details.",
+        });
     } finally {
-      setIsSaving(false);
+        setIsSaving(false);
     }
-  }
+}
 
 
   return (
@@ -263,6 +267,26 @@ export default function AiCourseCreatorPage() {
                     <AccordionTrigger>{lesson.title}</AccordionTrigger>
                     <AccordionContent>
                       <div className="prose prose-sm max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: lesson.content.replace(/\n/g, '<br />') }} />
+                      {lesson.quiz && lesson.quiz.length > 0 && (
+                        <div className="mt-4">
+                          <h4 className="font-semibold text-sm mb-2">Quiz</h4>
+                          <ul className="list-decimal pl-5 space-y-2 text-sm">
+                            {lesson.quiz.map((q, i) => (
+                              <li key={i}>
+                                <p className="font-medium">{q.stem}</p>
+                                <ul className="list-disc pl-5 mt-1">
+                                  {q.options.map((opt, j) => (
+                                    <li key={j} className={opt === q.answer ? 'font-bold text-primary' : ''}>
+                                      {opt}
+                                      {opt === q.answer && ' (Correct Answer)'}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </AccordionContent>
                   </AccordionItem>
                 ))}
@@ -279,3 +303,5 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
+
+    
