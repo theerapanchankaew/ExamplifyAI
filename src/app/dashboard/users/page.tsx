@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { useCollection } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import { collection } from 'firebase/firestore';
@@ -29,13 +29,16 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function UsersPage() {
   const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
   
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user || isUserLoading) return null;
     return collection(firestore, 'users');
-  }, [firestore]);
+  }, [firestore, user, isUserLoading]);
 
-  const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
+  const { data: users, isLoading: usersIsLoading } = useCollection<UserProfile>(usersQuery);
+
+  const isLoading = isUserLoading || usersIsLoading;
 
   const getAvatarForUser = (user: UserProfile, index: number) => {
     // This is a simple logic to rotate between a few placeholder avatars
