@@ -86,6 +86,7 @@ export default function AiCourseCreatorPage() {
       // 2. Save the main course document
       const courseRef = doc(collection(firestore, "courses"));
       batch.set(courseRef, {
+        id: courseRef.id,
         title: course.title,
         difficulty: form.getValues('difficulty'),
         competency: form.getValues('topic'), // Using topic as competency
@@ -94,34 +95,37 @@ export default function AiCourseCreatorPage() {
       // 3. Save lessons, their quizzes, and quiz questions
       for (const lesson of course.lessons) {
         const lessonRef = doc(collection(firestore, "lessons"));
-        const quizQuestionIds: string[] = [];
-        
-        // Save quiz questions for the lesson
-        if (lesson.quiz && lesson.quiz.length > 0) {
-          for (const quizItem of lesson.quiz) {
-              const quizQuestionRef = doc(collection(firestore, 'questions'));
-              batch.set(quizQuestionRef, {
-                  stem: quizItem.stem,
-                  options: quizItem.options,
-                  correctAnswer: quizItem.answer,
-                  difficulty: form.getValues('difficulty'), // Assign course difficulty
-              });
-              quizQuestionIds.push(quizQuestionRef.id);
-          }
-        }
-        
-        // Create a quiz document if there are questions for it
         let quizId: string | null = null;
-        if (quizQuestionIds.length > 0) {
-            const quizRef = doc(collection(firestore, 'quizzes'));
-            batch.set(quizRef, {
-                questionIds: quizQuestionIds,
-            });
-            quizId = quizRef.id;
+        
+        // Save quiz questions for the lesson if they exist
+        if (lesson.quiz && lesson.quiz.length > 0) {
+            const quizQuestionIds: string[] = [];
+            for (const quizItem of lesson.quiz) {
+                const quizQuestionRef = doc(collection(firestore, 'questions'));
+                batch.set(quizQuestionRef, {
+                    id: quizQuestionRef.id,
+                    stem: quizItem.stem,
+                    options: quizItem.options,
+                    correctAnswer: quizItem.answer,
+                    difficulty: form.getValues('difficulty'), // Assign course difficulty
+                });
+                quizQuestionIds.push(quizQuestionRef.id);
+            }
+            
+            // Create a quiz document if there are questions for it
+            if (quizQuestionIds.length > 0) {
+                const quizRef = doc(collection(firestore, 'quizzes'));
+                batch.set(quizRef, {
+                    id: quizRef.id,
+                    questionIds: quizQuestionIds,
+                });
+                quizId = quizRef.id;
+            }
         }
-
+        
         // Create the lesson document
         batch.set(lessonRef, {
+          id: lessonRef.id,
           courseId: courseRef.id,
           title: lesson.title,
           content: lesson.content,
@@ -275,5 +279,3 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
-
-    
