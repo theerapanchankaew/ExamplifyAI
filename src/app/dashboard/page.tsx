@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useMemoFirebase } from "@/firebase/provider"
@@ -68,9 +69,14 @@ export default function DashboardPage() {
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null; // Only fetch if admin
+    // This query should only be enabled when the user is an admin.
+    // However, including `isAdmin` in the dependency array can cause loops if `userProfile` re-renders frequently.
+    // The `useCollection` hook should internally handle the `null` query case.
+    // We will only enable this query once we have confirmed the user is an admin.
+    if (!firestore || !isAdmin) return null; 
     return collection(firestore, 'users');
-  }, [firestore, isAdmin]);
+  }, [firestore, isAdmin]); // Stable dependencies
+  
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
   const coursesQuery = useMemoFirebase(() => {
@@ -164,7 +170,7 @@ export default function DashboardPage() {
   const isLoading = isUserLoading || isProfileLoading || (isAdmin && usersLoading) || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || examsLoading;
 
   const stats = [
-    { title: "Total Users", value: users?.length ?? '...', icon: Users },
+    { title: "Total Users", value: (isAdmin && users) ? users.length : '...', icon: Users },
     { title: "Total Courses", value: courses?.length ?? '...', icon: BookOpen },
     { title: "Attempts Today", value: attemptsToday?.length ?? '...', icon: CheckCircle },
     { title: "Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
@@ -262,5 +268,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-
-    
