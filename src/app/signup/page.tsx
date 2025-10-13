@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -18,11 +18,12 @@ import { BookA, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
+  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   email: z.string().email({ message: "Please enter a valid email." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -32,6 +33,7 @@ export default function LoginPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      name: "",
       email: "",
       password: "",
     },
@@ -46,39 +48,35 @@ export default function LoginPage() {
         });
         return;
     }
-    
     setIsLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      // 1. Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Fetch user role from Firestore
-      const userDocRef = doc(firestore, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
+      // 2. Create user profile in Firestore
+      await setDoc(doc(firestore, "users", user.uid), {
+        userId: user.uid,
+        name: values.name,
+        email: values.email,
+        role: 'student', // Default role
+        cabTokens: 0, // Default value
+      });
+      
+      toast({
+        title: "Account Created!",
+        description: "You have been successfully signed up.",
+      });
 
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.role === 'admin') {
-          router.push('/dashboard');
-        } else {
-          router.push('/student-dashboard');
-        }
-      } else {
-        // Fallback if user document doesn't exist for some reason
-        toast({
-            variant: "destructive",
-            title: "User profile not found.",
-            description: "Please contact support.",
-        });
-        router.push('/student-dashboard');
-      }
+      // 3. Redirect to student dashboard
+      router.push('/student-dashboard');
 
     } catch (error: any) {
-      console.error("Login failed: ", error);
+      console.error("Signup failed: ", error);
       toast({
         variant: "destructive",
-        title: "Login Failed",
-        description: error.message || "An unknown error occurred. Please check your credentials.",
+        title: "Sign Up Failed",
+        description: error.message || "An unknown error occurred. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -93,12 +91,25 @@ export default function LoginPage() {
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle>Welcome Back!</CardTitle>
-          <CardDescription>Enter your credentials to access your account.</CardDescription>
+          <CardTitle>Create an Account</CardTitle>
+          <CardDescription>Join ExamplifyAI to start your learning journey.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="email"
@@ -127,16 +138,16 @@ export default function LoginPage() {
               />
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Sign In
+                Sign Up
               </Button>
             </form>
           </Form>
         </CardContent>
       </Card>
-      <p className="text-sm text-muted-foreground mt-6">
-        Don't have an account?{" "}
-        <Link href="/signup" className="font-semibold text-primary hover:underline">
-          Sign up
+       <p className="text-sm text-muted-foreground mt-6">
+        Already have an account?{" "}
+        <Link href="/" className="font-semibold text-primary hover:underline">
+          Sign in
         </Link>
       </p>
     </div>
