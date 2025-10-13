@@ -96,11 +96,8 @@ export default function AiCourseCreatorPage() {
         if (course.lessons && course.lessons.length > 0) {
             for (const lesson of course.lessons) {
                 const lessonRef = doc(collection(firestore, "lessons"));
-                const lessonData: any = {
-                    courseId: courseRef.id,
-                    title: lesson.title,
-                    content: lesson.content,
-                };
+                
+                let quizId: string | null = null;
                 
                 // 3a. Check if lesson has a quiz
                 if (lesson.quiz && lesson.quiz.length > 0) {
@@ -123,11 +120,20 @@ export default function AiCourseCreatorPage() {
                         questionIds: quizQuestionIds,
                     });
                     
-                    // 3c. Link the quiz to the lesson
-                    lessonData.quizId = quizRef.id;
+                    quizId = quizRef.id;
                 }
                 
-                // 3d. Set the lesson document data
+                // 3c. Set the lesson document data
+                const lessonData: any = {
+                    courseId: courseRef.id,
+                    title: lesson.title,
+                    content: lesson.content,
+                };
+
+                if (quizId) {
+                    lessonData.quizId = quizId;
+                }
+
                 batch.set(lessonRef, lessonData);
             }
         }
@@ -299,3 +305,5 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
+
+    
