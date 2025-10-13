@@ -114,6 +114,7 @@ export default function AiCourseCreatorPage() {
         }
   
         batch.set(lessonRef, {
+          id: lessonRef.id,
           courseId: courseRef.id,
           title: lessonData.title,
           content: lessonData.content,
@@ -124,6 +125,7 @@ export default function AiCourseCreatorPage() {
       // 4. Batch write the main exam document
       const examRef = doc(collection(firestore, "exams"));
       batch.set(examRef, {
+        id: examRef.id,
         courseId: courseRef.id,
         questionIds: questionIds,
         blueprint: `Exam for ${course.title}`,
