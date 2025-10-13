@@ -4,7 +4,8 @@
 import { useMemoFirebase } from "@/firebase/provider"
 import { useCollection } from "@/firebase"
 import { collection, query, where, limit, orderBy, Timestamp } from "firebase/firestore"
-import { useFirestore, useUser } from "@/firebase"
+import { useFirestore, useUser, useDoc } from "@/firebase"
+import { doc } from 'firebase/firestore';
 import {
   Card,
   CardContent,
@@ -54,14 +55,22 @@ type EnrichedAttempt = Attempt & {
 
 export default function DashboardPage() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user: authUser, isUserLoading } = useUser();
 
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !authUser) return null;
+    return doc(firestore, 'users', authUser.uid);
+  }, [firestore, authUser]);
+
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+
+  const isAdmin = userProfile?.role === 'admin';
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !isAdmin) return null; // Only fetch if admin
     return collection(firestore, 'users');
-  }, [firestore]);
+  }, [firestore, isAdmin]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
   const coursesQuery = useMemoFirebase(() => {
@@ -152,7 +161,7 @@ export default function DashboardPage() {
     });
   }, [recentAttempts, users, courses, exams]);
 
-  const isLoading = isUserLoading || usersLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || examsLoading;
+  const isLoading = isUserLoading || isProfileLoading || (isAdmin && usersLoading) || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || examsLoading;
 
   const stats = [
     { title: "Total Users", value: users?.length ?? '...', icon: Users },
@@ -253,3 +262,5 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+    
