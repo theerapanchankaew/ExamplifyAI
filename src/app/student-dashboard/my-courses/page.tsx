@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from "react";
+import { useMemoFirebase } from "@/firebase/provider";
 import { useCollection } from "@/firebase";
 import { useFirestore } from "@/firebase/provider";
 import { collection } from "firebase/firestore";
@@ -15,7 +15,7 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 export default function MyCoursesPage() {
   const firestore = useFirestore();
-  const coursesQuery = useMemo(() => {
+  const coursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'courses');
   }, [firestore]);
