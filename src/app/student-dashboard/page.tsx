@@ -1,22 +1,24 @@
+
 'use client';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
 import Link from "next/link";
 import { PlaceHolderImages, type ImagePlaceholder } from "@/lib/placeholder-images";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { ShieldAlert } from "lucide-react";
 import { useIsClient } from "@/hooks/use-is-client";
 
 const featuredCourseIds = ['course-placeholder-1', 'course-placeholder-2', 'course-placeholder-3'];
+
+// This filtering ensures that we don't have undefined values in the array
 const featuredCourses: ImagePlaceholder[] = featuredCourseIds
   .map(id => PlaceHolderImages.find(img => img.id === id))
   .filter((course): course is ImagePlaceholder => course !== undefined);
 
 export default function StudentDashboardPage() {
   const isClient = useIsClient();
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
@@ -24,25 +26,13 @@ export default function StudentDashboardPage() {
         <p className="text-muted-foreground">Here's a summary of your recent activity and available courses.</p>
       </div>
 
-      <Alert variant="destructive" className="bg-destructive/10 border-destructive/50 text-destructive-foreground [&>svg]:text-destructive">
-          <ShieldAlert className="h-4 w-4" />
-          <AlertTitle className="font-bold">Action Required: Verify Your Identity</AlertTitle>
-          <AlertDescription className="flex justify-between items-center">
-              <div>
-                You must verify your identity before you can enroll in courses and take exams. This is a one-time process to ensure a secure and fair testing environment.
-              </div>
-              <Link href="/student-dashboard/verify-identity" passHref>
-                <Button variant="destructive">Verify My Identity</Button>
-              </Link>
-          </AlertDescription>
-      </Alert>
-
       <div>
         <h2 className="text-2xl font-bold font-headline mb-4">Featured Courses</h2>
         {isClient && (
           <Carousel opts={{ align: "start", loop: true, }} className="w-full">
             <CarouselContent>
-              {featuredCourses.map((course, index) => (
+              {featuredCourses.map((course, index) => {
+                return (
                   <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
                     <Card className="overflow-hidden">
                       <CardContent className="p-0">
@@ -55,7 +45,8 @@ export default function StudentDashboardPage() {
                       </CardContent>
                     </Card>
                   </CarouselItem>
-              ))}
+                );
+              })}
             </CarouselContent>
             <CarouselPrevious className="ml-12" />
             <CarouselNext className="mr-12" />
@@ -100,5 +91,5 @@ export default function StudentDashboardPage() {
       </div>
 
     </div>
-  )
+  );
 }
