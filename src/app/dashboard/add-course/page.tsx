@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 const formSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters long."),
@@ -35,25 +37,37 @@ export default function AddCoursePage() {
   })
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!firestore) return;
     setIsLoading(true);
-    try {
-      const coursesCollection = collection(firestore, "courses");
-      await addDoc(coursesCollection, values);
-      toast({
-        title: "Course Added!",
-        description: "The new course has been successfully created.",
+    const coursesCollection = collection(firestore, "courses");
+    
+    addDoc(coursesCollection, values)
+      .then(() => {
+        toast({
+          title: "Course Added!",
+          description: "The new course has been successfully created.",
+        });
+        form.reset();
+      })
+      .catch((error) => {
+        console.error("Error adding document: ", error);
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Something went wrong.",
+          description: "There was a problem with your request.",
+        });
+        errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: coursesCollection.path,
+            operation: 'create',
+            requestResourceData: values,
+          })
+        );
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
-      form.reset();
-    } catch (error) {
-      console.error("Error adding document: ", error);
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "There was a problem with your request.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
   }
 
   return (

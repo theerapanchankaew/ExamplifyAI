@@ -108,13 +108,13 @@ export default function AiCourseCreatorPage() {
           });
   
           batch.set(quizRef, {
-            id: quizId,
+            // id: quizId, // id is already the doc id
             questionIds: quizQuestionIds,
           });
         }
   
         batch.set(lessonRef, {
-          id: lessonRef.id,
+          // id: lessonRef.id,
           courseId: courseRef.id,
           title: lessonData.title,
           content: lessonData.content,
@@ -125,7 +125,7 @@ export default function AiCourseCreatorPage() {
       // 4. Batch write the main exam document
       const examRef = doc(collection(firestore, "exams"));
       batch.set(examRef, {
-        id: examRef.id,
+        // id: examRef.id,
         courseId: courseRef.id,
         questionIds: questionIds,
         blueprint: `Exam for ${course.title}`,
@@ -133,7 +133,7 @@ export default function AiCourseCreatorPage() {
   
       // 5. Batch write the main course document
       batch.set(courseRef, {
-        id: courseRef.id,
+        // id: courseRef.id,
         title: course.title,
         description: course.description,
         difficulty: difficulty,
@@ -308,5 +308,3 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
-
-    

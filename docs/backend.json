@@ -191,6 +191,11 @@
         "pass": {
           "type": "boolean",
           "description": "Indicates whether the user passed the exam attempt."
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The timestamp of when the attempt was made."
         }
       },
       "required": [
@@ -451,236 +456,91 @@
     ]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profiles.  `userId` matches `request.auth.uid`.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user, corresponding to their Firebase Auth UID."
-            }
-          ]
-        }
+    "structure": {
+      "/users/{userId}": {
+        "schema": {
+          "$ref": "#/entities/User"
+        },
+        "description": "Stores user profiles.  `userId` matches `request.auth.uid`."
       },
-      {
-        "path": "/courses/{courseId}",
-        "definition": {
-          "entityName": "Course",
-          "schema": {
-            "$ref": "#/backend/entities/Course"
-          },
-          "description": "Stores course information.",
-          "params": [
-            {
-              "name": "courseId",
-              "description": "The unique identifier for the course."
-            }
-          ]
-        }
+      "/courses/{courseId}": {
+        "schema": {
+          "$ref": "#/entities/Course"
+        },
+        "description": "Stores course information."
       },
-      {
-        "path": "/lessons/{lessonId}",
-        "definition": {
-          "entityName": "Lesson",
-          "schema": {
-            "$ref": "#/backend/entities/Lesson"
-          },
-          "description": "Stores lesson information, related to a course by `courseId`.",
-          "params": [
-            {
-              "name": "lessonId",
-              "description": "The unique identifier for the lesson."
-            }
-          ]
-        }
+      "/lessons/{lessonId}": {
+        "schema": {
+          "$ref": "#/entities/Lesson"
+        },
+        "description": "Stores lesson information, related to a course by `courseId`."
       },
-      {
-        "path": "/questions/{questionId}",
-        "definition": {
-          "entityName": "Question",
-          "schema": {
-            "$ref": "#/backend/entities/Question"
-          },
-          "description": "Stores questions for exams and quizzes.",
-          "params": [
-            {
-              "name": "questionId",
-              "description": "The unique identifier for the question."
-            }
-          ]
-        }
+      "/questions/{questionId}": {
+        "schema": {
+          "$ref": "#/entities/Question"
+        },
+        "description": "Stores questions for exams and quizzes."
       },
-      {
-        "path": "/exams/{examId}",
-        "definition": {
-          "entityName": "Exam",
-          "schema": {
-            "$ref": "#/backend/entities/Exam"
-          },
-          "description": "Stores exam definitions, related to a course by `courseId`.",
-          "params": [
-            {
-              "name": "examId",
-              "description": "The unique identifier for the exam."
-            }
-          ]
-        }
+      "/exams/{examId}": {
+        "schema": {
+          "$ref": "#/entities/Exam"
+        },
+        "description": "Stores exam definitions, related to a course by `courseId`."
       },
-      {
-        "path": "/attempts/{attemptId}",
-        "definition": {
-          "entityName": "Attempt",
-          "schema": {
-            "$ref": "#/backend/entities/Attempt"
-          },
-          "description": "Stores user exam attempts, linked to a user by `userId` and an exam by `examId`.",
-          "params": [
-            {
-              "name": "attemptId",
-              "description": "The unique identifier for the attempt."
-            }
-          ]
-        }
+      "/attempts/{attemptId}": {
+        "schema": {
+          "$ref": "#/entities/Attempt"
+        },
+        "description": "Stores user exam attempts, linked to a user by `userId` and an exam by `examId`."
       },
-      {
-        "path": "/metrics/daily/{date}",
-        "definition": {
-          "entityName": "DailyMetrics",
-          "schema": {
-            "$ref": "#/backend/entities/DailyMetrics"
-          },
-          "description": "Stores daily metrics for the system. Document ID is the date in YYYYMMDD format.",
-          "params": [
-            {
-              "name": "date",
-              "description": "The date for the metrics in YYYYMMDD format."
-            }
-          ]
-        }
+      "/metrics/daily/{date}": {
+        "schema": {
+          "$ref": "#/entities/DailyMetrics"
+        },
+        "description": "Stores daily metrics for the system. Document ID is the date in YYYYMMDD format."
       },
-      {
-        "path": "/courseCompetencies/{courseCompetencyId}",
-        "definition": {
-          "entityName": "CourseCompetency",
-          "schema": {
-            "$ref": "#/backend/entities/CourseCompetency"
-          },
-          "description": "Stores the mapping between courses and competencies.",
-          "params": [
-            {
-              "name": "courseCompetencyId",
-              "description": "The unique identifier for the course competency."
-            }
-          ]
-        }
+      "/courseCompetencies/{courseCompetencyId}": {
+        "schema": {
+          "$ref": "#/entities/CourseCompetency"
+        },
+        "description": "Stores the mapping between courses and competencies."
       },
-      {
-        "path": "/users/{userId}/achievements/{userAchievementId}",
-        "definition": {
-          "entityName": "UserAchievement",
-          "schema": {
-            "$ref": "#/backend/entities/UserAchievement"
-          },
-          "description": "Stores user achievements. Accessible only by the user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "userAchievementId",
-              "description": "The unique identifier for the user achievement."
-            }
-          ]
-        }
+      "/users/{userId}/achievements/{userAchievementId}": {
+        "schema": {
+          "$ref": "#/entities/UserAchievement"
+        },
+        "description": "Stores user achievements. Accessible only by the user."
       },
-      {
-        "path": "/masterCourses/{masterCourseId}",
-        "definition": {
-          "entityName": "MasterCourse",
-          "schema": {
-            "$ref": "#/backend/entities/MasterCourse"
-          },
-          "description": "Stores master course definitions.",
-          "params": [
-            {
-              "name": "masterCourseId",
-              "description": "The unique identifier for the master course."
-            }
-          ]
-        }
+      "/masterCourses/{masterCourseId}": {
+        "schema": {
+          "$ref": "#/entities/MasterCourse"
+        },
+        "description": "Stores master course definitions."
       },
-      {
-        "path": "/masterCertificates/{masterCertificateId}",
-        "definition": {
-          "entityName": "MasterCertificate",
-          "schema": {
-            "$ref": "#/backend/entities/MasterCertificate"
-          },
-          "description": "Stores issued master certificates, linked to a user by `userId` and a master course by `masterCourseId`.",
-          "params": [
-            {
-              "name": "masterCertificateId",
-              "description": "The unique identifier for the master certificate."
-            }
-          ]
-        }
+      "/masterCertificates/{masterCertificateId}": {
+        "schema": {
+          "$ref": "#/entities/MasterCertificate"
+        },
+        "description": "Stores issued master certificates, linked to a user by `userId` and a master course by `masterCourseId`."
       },
-      {
-        "path": "/roadmaps/{roadmapId}",
-        "definition": {
-          "entityName": "Roadmap",
-          "schema": {
-            "$ref": "#/backend/entities/Roadmap"
-          },
-          "description": "Stores roadmap definitions.",
-          "params": [
-            {
-              "name": "roadmapId",
-              "description": "The unique identifier for the roadmap."
-            }
-          ]
-        }
+      "/roadmaps/{roadmapId}": {
+        "schema": {
+          "$ref": "#/entities/Roadmap"
+        },
+        "description": "Stores roadmap definitions."
       },
-      {
-        "path": "/schedules/{scheduleId}",
-        "definition": {
-          "entityName": "Schedule",
-          "schema": {
-            "$ref": "#/backend/entities/Schedule"
-          },
-          "description": "Stores schedule events.",
-          "params": [
-            {
-              "name": "scheduleId",
-              "description": "The unique identifier for the schedule."
-            }
-          ]
-        }
+      "/schedules/{scheduleId}": {
+        "schema": {
+          "$ref": "#/entities/Schedule"
+        },
+        "description": "Stores schedule events."
       },
-      {
-        "path": "/quizzes/{quizId}",
-        "definition": {
-          "entityName": "Quiz",
-          "schema": {
-            "$ref": "#/backend/entities/Quiz"
-          },
-          "description": "Stores quiz information.",
-          "params": [
-            {
-              "name": "quizId",
-              "description": "The unique identifier for the quiz."
-            }
-          ]
-        }
+      "/quizzes/{quizId}": {
+        "schema": {
+          "$ref": "#/entities/Quiz"
+        },
+        "description": "Stores quiz information."
       }
-    ],
-    "reasoning": "The Firestore structure is designed to ensure authorization independence and optimize security rules based on roles. User-owned data is stored under the `/users/{userId}` path. Collaborative data, if any, will use membership maps (not explicitly defined in the entities, but the system can be extended to support collaborative courses or exams). The `DailyMetrics` collection uses document IDs based on date (`YYYYMMDD`) to ensure uniqueness and easy querying for daily statistics.\n\n**Authorization Independence:** Relationships are created using IDs and collections instead of subcollections, which removes dependency on parent documents and avoids the need for `get()` calls in security rules. For example, `Attempt` documents contain `userId` and `examId`, instead of being nested within `/users/{userId}/attempts/{attemptId}`. This allows querying attempts across all users or exams.\n\n**QAPs (Rules are not Filters):** Segregation is achieved through clear path-based ownership (e.g., `/users/{userId}/achievements/{achievementId}`). Since the roles are stored in the `users` documents themselves, authorization rules can easily validate based on `request.auth.uid` and the user's role. For example, listing achievements is secure because it is user-owned.\n\n**Global Roles (DBAC):** Roles are stored directly within the `User` document, which simplifies role-based access control. No custom claims are used."
+    }
   }
 }
