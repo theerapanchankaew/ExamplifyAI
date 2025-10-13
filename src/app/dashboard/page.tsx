@@ -141,9 +141,10 @@ export default function DashboardPage() {
       const exam = examsMap.get(attempt.examId);
       const course = exam ? coursesMap.get(exam.courseId) : undefined;
       
+      // Since we cannot fetch all users, we will just use the userId
       return {
         ...attempt,
-        userName: attempt.userId, // Fallback to userId as we can't fetch all users here
+        userName: attempt.userId, // Fallback to userId
         courseTitle: course?.title || 'Unknown Course',
         userAvatarUrl: undefined, // No user data available
       };
