@@ -1,5 +1,3 @@
-
-
 'use client'
 
 import { useMemoFirebase } from "@/firebase/provider"
@@ -65,7 +63,6 @@ export default function DashboardPage() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const isAdmin = userProfile?.role === 'admin';
   const todayStart = useMemo(() => startOfDay(new Date()), []);
 
   const coursesQuery = useMemoFirebase(() => {
@@ -134,9 +131,6 @@ export default function DashboardPage() {
 
   }, [allAttempts]);
   
-  // Note: We cannot enrich with user names here without fetching all users,
-  // which is causing permission issues. We will display userId for now or fetch one-by-one.
-  // A better solution would involve denormalizing user names into attempts or using a cloud function.
   const enrichedRecentAttempts = useMemo<EnrichedAttempt[]>(() => {
     if (!recentAttempts || !courses || !exams) return [];
 
@@ -149,7 +143,7 @@ export default function DashboardPage() {
       
       return {
         ...attempt,
-        userName: attempt.userId, // Fallback to userId
+        userName: attempt.userId, // Fallback to userId as we can't fetch all users here
         courseTitle: course?.title || 'Unknown Course',
         userAvatarUrl: undefined, // No user data available
       };
@@ -159,7 +153,6 @@ export default function DashboardPage() {
   const isLoading = isUserLoading || isProfileLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || examsLoading;
 
   const stats = [
-    // { title: "Total Users", value: '...', icon: Users }, // This requires fetching all users, which is blocked.
     { title: "Total Courses", value: courses?.length ?? '...', icon: BookOpen },
     { title: "Attempts Today", value: attemptsToday?.length ?? '...', icon: CheckCircle },
     { title: "Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
@@ -177,7 +170,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
