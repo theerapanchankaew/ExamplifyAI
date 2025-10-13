@@ -72,14 +72,13 @@ export default function AiCourseCreatorPage() {
       const batch = writeBatch(firestore);
       const difficulty = form.getValues('difficulty');
 
-      // 1. Create a document reference for the new course.
-      // This allows us to get the ID before committing the batch.
+      // 1. Create a document reference for the new course with a generated ID.
       const courseRef = doc(collection(firestore, "courses"));
       batch.set(courseRef, {
         title: course.title,
         description: course.description,
         difficulty: difficulty,
-        competency: form.getValues('topic'), // Using topic as competency for now
+        competency: form.getValues('topic'), // Using topic as competency
       });
 
       // 2. Create documents for general questions (not tied to a specific lesson quiz)
@@ -106,7 +105,7 @@ export default function AiCourseCreatorPage() {
             content: lesson.content,
           };
 
-          // 3b. Check if the lesson has a quiz.
+          // 3b. Check if the lesson has a quiz with questions.
           if (lesson.quiz && lesson.quiz.length > 0) {
             const quizQuestionIds: string[] = [];
             
@@ -117,7 +116,7 @@ export default function AiCourseCreatorPage() {
                 stem: quizItem.stem,
                 options: quizItem.options,
                 correctAnswer: quizItem.answer,
-                difficulty: difficulty, // Use the overall course difficulty
+                difficulty: difficulty, // Use the overall course difficulty for quiz questions
               });
               quizQuestionIds.push(quizQuestionRef.id);
             }
