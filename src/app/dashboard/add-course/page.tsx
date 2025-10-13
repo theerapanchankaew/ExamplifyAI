@@ -8,6 +8,8 @@ import { generateCourseFromTopic, GenerateCourseFromTopicOutput } from "@/ai/flo
 import { useFirestore } from "@/firebase"
 import { collection, writeBatch, doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -83,6 +85,7 @@ export default function AiCourseCreatorPage() {
           options: q.options,
           correctAnswer: q.answer,
           difficulty: q.difficulty,
+          id: questionRef.id,
         });
         return questionRef.id;
       });
@@ -102,17 +105,20 @@ export default function AiCourseCreatorPage() {
               stem: quizItem.stem,
               options: quizItem.options,
               correctAnswer: quizItem.answer,
-              difficulty: difficulty, // Use course difficulty for quiz questions
+              difficulty: difficulty,
+              id: quizQuestionRef.id,
             });
             return quizQuestionRef.id;
           });
   
           batch.set(quizRef, {
+            id: quizRef.id,
             questionIds: quizQuestionIds,
           });
         }
   
         batch.set(lessonRef, {
+          id: lessonRef.id,
           courseId: courseRef.id,
           title: lessonData.title,
           content: lessonData.content,
@@ -125,6 +131,7 @@ export default function AiCourseCreatorPage() {
       // 4. Batch write the main exam document
       const examRef = doc(collection(firestore, "exams"));
       batch.set(examRef, {
+        id: examRef.id,
         courseId: courseRef.id,
         questionIds: questionIds,
         blueprint: `Exam for ${course.title}`,
@@ -132,6 +139,7 @@ export default function AiCourseCreatorPage() {
   
       // 5. Batch write the main course document
       batch.set(courseRef, {
+        id: courseRef.id,
         title: course.title,
         description: course.description,
         difficulty: difficulty,
@@ -149,13 +157,20 @@ export default function AiCourseCreatorPage() {
       setCourse(null);
       form.reset();
   
-    } catch (e) {
-      console.error("Error saving course: ", e);
+    } catch (e: any) {
+      const permissionError = new FirestorePermissionError({
+        path: 'batch operation',
+        operation: 'write',
+        requestResourceData: course,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
-        description: "There was a problem saving the course. Check the browser console for more details.",
+        description: "There was a problem saving the course. Check the developer console for more details.",
       });
+      console.error("Error saving course: ", e);
     } finally {
       setIsSaving(false);
     }
@@ -166,7 +181,7 @@ export default function AiCourseCreatorPage() {
       <div className="lg:col-span-1">
         <Card>
           <CardHeader>
-            <CardTitle>AI Course Creator</CardTitle>
+            <CardTitle>Add Course</CardTitle>
             <CardDescription>Generate a complete course with lessons and exams using AI.</CardDescription>
           </CardHeader>
           <CardContent>

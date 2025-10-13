@@ -2,12 +2,14 @@
 import { Timestamp } from "firebase/firestore";
 
 export type UserProfile = {
-  id: string; // This is automatically added by useCollection and represents the document ID
-  userId: string; // The user's unique ID from Firebase Auth
+  id: string; // This should match the document ID in Firestore, which is user.uid
+  userId: string;
   name: string;
   email: string;
-  role: string;
+  role: 'student' | 'admin' | 'instructor';
   cabTokens?: number;
+  mandatoryLearningPath?: string[];
+  voluntaryLearningPath?: string[];
 };
 
 // This mirrors the `Attempt` entity in backend.json

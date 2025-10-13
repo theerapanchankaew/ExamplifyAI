@@ -24,7 +24,7 @@ import {
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/add-course", label: "Add Course (AI)", icon: PlusCircle },
+  { href: "/dashboard/add-course", label: "Add Course", icon: PlusCircle },
   { href: "/dashboard/course-creator", label: "Course Creator", icon: BookOpen },
   { href: "/dashboard/master-course-creator", label: "Master Courses", icon: BookMarked },
   { href: "/dashboard/roadmap-creator", label: "Roadmaps", icon: Waypoints },
