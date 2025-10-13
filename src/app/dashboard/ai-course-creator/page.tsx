@@ -71,9 +71,72 @@ export default function AiCourseCreatorPage() {
       const batch = writeBatch(firestore);
       const difficulty = form.getValues('difficulty');
       const topic = form.getValues('topic');
-
-      // 1. Create Course Document
+  
+      // 1. Create Course Document Reference
       const courseRef = doc(collection(firestore, "courses"));
+  
+      // 2. Create Lesson and Question Document References
+      const lessonRefs = course.lessons.map(() => doc(collection(firestore, "lessons")));
+      const generalQuestionRefs = course.questions.map(() => doc(collection(firestore, "questions")));
+      const quizData = course.lessons.map(lesson => {
+          if (!lesson.quiz || lesson.quiz.length === 0) {
+              return null;
+          }
+          const quizRef = doc(collection(firestore, 'quizzes'));
+          const questionRefs = lesson.quiz.map(() => doc(collection(firestore, 'questions')));
+          return { quizRef, questionRefs };
+      });
+  
+      // 3. Batch set general questions
+      course.questions.forEach((q, index) => {
+        const questionRef = generalQuestionRefs[index];
+        batch.set(questionRef, {
+          id: questionRef.id,
+          stem: q.stem,
+          options: q.options,
+          correctAnswer: q.answer,
+          difficulty: q.difficulty,
+        });
+      });
+  
+      // 4. Batch set lessons, quizzes, and quiz questions
+      course.lessons.forEach((lessonData, index) => {
+        const lessonRef = lessonRefs[index];
+        let quizId: string | null = null;
+        
+        const currentQuizData = quizData[index];
+        if (currentQuizData) {
+            quizId = currentQuizData.quizRef.id;
+            const quizQuestionIds: string[] = [];
+
+            lessonData.quiz.forEach((quizItem, quizIndex) => {
+                const quizQuestionRef = currentQuizData.questionRefs[quizIndex];
+                quizQuestionIds.push(quizQuestionRef.id);
+                batch.set(quizQuestionRef, {
+                    id: quizQuestionRef.id,
+                    stem: quizItem.stem,
+                    options: quizItem.options,
+                    correctAnswer: quizItem.answer,
+                    difficulty: difficulty,
+                });
+            });
+
+            batch.set(currentQuizData.quizRef, {
+                id: quizId,
+                questionIds: quizQuestionIds,
+            });
+        }
+  
+        batch.set(lessonRef, {
+          id: lessonRef.id,
+          courseId: courseRef.id,
+          title: lessonData.title,
+          content: lessonData.content,
+          ...(quizId && { quizId: quizId }),
+        });
+      });
+  
+      // 5. Batch set the main course document
       batch.set(courseRef, {
         id: courseRef.id,
         title: course.title,
@@ -82,62 +145,7 @@ export default function AiCourseCreatorPage() {
         competency: topic,
       });
   
-      // 2. Create General Questions
-      if (course.questions && course.questions.length > 0) {
-        for (const q of course.questions) {
-          const questionRef = doc(collection(firestore, "questions"));
-          batch.set(questionRef, {
-            id: questionRef.id,
-            stem: q.stem,
-            options: q.options,
-            correctAnswer: q.answer,
-            difficulty: q.difficulty,
-          });
-        }
-      }
-  
-      // 3. Create Lessons and Their Quizzes
-      if (course.lessons && course.lessons.length > 0) {
-        for (const lessonData of course.lessons) {
-          const lessonRef = doc(collection(firestore, "lessons"));
-          let quizId: string | null = null;
-  
-          // Create Quiz and its Questions if they exist
-          if (lessonData.quiz && lessonData.quiz.length > 0) {
-            const quizRef = doc(collection(firestore, 'quizzes'));
-            quizId = quizRef.id;
-            const quizQuestionIds: string[] = [];
-
-            for (const quizItem of lessonData.quiz) {
-              const quizQuestionRef = doc(collection(firestore, 'questions'));
-              quizQuestionIds.push(quizQuestionRef.id);
-              batch.set(quizQuestionRef, {
-                id: quizQuestionRef.id,
-                stem: quizItem.stem,
-                options: quizItem.options,
-                correctAnswer: quizItem.answer,
-                difficulty: difficulty, // Use overall course difficulty
-              });
-            }
-            // Set Quiz document
-            batch.set(quizRef, {
-              id: quizRef.id,
-              questionIds: quizQuestionIds,
-            });
-          }
-          
-          // Set Lesson document
-          batch.set(lessonRef, {
-            id: lessonRef.id,
-            courseId: courseRef.id,
-            title: lessonData.title,
-            content: lessonData.content,
-            ...(quizId && { quizId: quizId }),
-          });
-        }
-      }
-  
-      // 4. Commit all writes to Firestore
+      // 6. Commit the batch
       await batch.commit();
   
       toast({
@@ -145,7 +153,7 @@ export default function AiCourseCreatorPage() {
         description: `"${course.title}" has been saved successfully.`,
       });
       
-      // Reset state after successful save
+      // Reset state
       setCourse(null);
       form.reset();
   
@@ -306,3 +314,5 @@ export default function AiCourseCreatorPage() {
     </div>
   )
 }
+
+    
