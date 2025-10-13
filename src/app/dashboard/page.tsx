@@ -30,7 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Users, BookOpen, CheckCircle, Percent, Activity, Loader2 } from "lucide-react"
 import type { ExamAttempt, UserProfile } from "@/types"
 import { subDays, format } from 'date-fns'
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 
 const chartConfig = {
   attempts: {
@@ -46,6 +46,13 @@ const chartConfig = {
 
 export default function DashboardPage() {
   const firestore = useFirestore();
+  const [today, setToday] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    setToday(d);
+  }, []);
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -59,14 +66,8 @@ export default function DashboardPage() {
   }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection(coursesQuery);
 
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
   const attemptsTodayQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !today) return null;
     return query(collection(firestore, 'attempts'), where('timestamp', '>=', today));
   }, [firestore, today]);
   const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection<ExamAttempt>(attemptsTodayQuery);
@@ -117,7 +118,7 @@ export default function DashboardPage() {
 
   }, [allAttempts]);
   
-  const isLoading = usersLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading;
+  const isLoading = usersLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || allAttemptsLoading || !today;
 
   const stats = [
     { title: "Total Users", value: users?.length ?? '...', icon: Users },
