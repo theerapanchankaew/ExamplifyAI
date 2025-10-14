@@ -8,6 +8,7 @@ import Link from "next/link";
 import { PlaceHolderImages, type ImagePlaceholder } from "@/lib/placeholder-images";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { useIsClient } from "@/hooks/use-is-client";
+import { Gem } from "lucide-react";
 
 const featuredCourseIds = ['course-placeholder-1', 'course-placeholder-2', 'course-placeholder-3'];
 
@@ -34,13 +35,19 @@ export default function StudentDashboardPage() {
               {featuredCourses.map((course, index) => {
                 return (
                   <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
-                    <Card className="overflow-hidden">
-                      <CardContent className="p-0">
+                    <Card className="overflow-hidden flex flex-col h-full">
+                      <CardContent className="p-0 flex-grow flex flex-col">
                         <Image src={course.imageUrl} alt={course.description} width={600} height={400} className="w-full aspect-video object-cover" data-ai-hint={course.imageHint} />
-                        <div className="p-4">
+                        <div className="p-4 flex-grow flex flex-col">
                           <h3 className="font-semibold">Course Title {index + 1}</h3>
-                          <p className="text-sm text-muted-foreground mt-1">A brief description of the course content goes here.</p>
-                          <Button className="w-full mt-4">Enroll Now</Button>
+                          <p className="text-sm text-muted-foreground mt-1 flex-grow">A brief description of the course content goes here.</p>
+                          <div className="flex justify-between items-center mt-4">
+                            <div className="flex items-center gap-2 font-bold text-lg text-primary">
+                               <Gem className="h-5 w-5" />
+                               <span>{course.priceInCab ?? 'N/A'}</span>
+                            </div>
+                            <Button>Enroll Now</Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>

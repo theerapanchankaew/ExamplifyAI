@@ -16,19 +16,22 @@
       "id": "course-placeholder-1",
       "description": "Placeholder for a course card",
       "imageUrl": "https://picsum.photos/seed/101/600/400",
-      "imageHint": "education abstract"
+      "imageHint": "education abstract",
+      "priceInCab": 100
     },
     {
       "id": "course-placeholder-2",
       "description": "Placeholder for a course card",
       "imageUrl": "https://picsum.photos/seed/102/600/400",
-      "imageHint": "technology learning"
+      "imageHint": "technology learning",
+      "priceInCab": 150
     },
     {
       "id": "course-placeholder-3",
       "description": "Placeholder for a course card",
       "imageUrl": "https://picsum.photos/seed/103/600/400",
-      "imageHint": "science classroom"
+      "imageHint": "science classroom",
+      "priceInCab": 120
     }
   ]
 }
