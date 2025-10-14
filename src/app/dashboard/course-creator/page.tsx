@@ -1,5 +1,15 @@
-import { PlaceholderContent } from "@/components/placeholder-content";
 
-export default function CourseCreatorPage() {
-    return <PlaceholderContent title="Course Creator" description="Manually create, edit, and arrange lessons. Add content, quizzes, and resources." />;
+'use client';
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// This page is now a directory for other pages.
+// Redirect to the first sub-item.
+export default function CourseCreatorRedirectPage() {
+    const router = useRouter();
+    useEffect(() => {
+        router.replace('/dashboard/add-course');
+    }, [router]);
+
+    return null; // Or a loading spinner
 }
