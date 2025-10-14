@@ -2,14 +2,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useMemo, useEffect } from 'react';
-import type { ImagePlaceholder } from '@/lib/placeholder-images';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser } from '@/firebase';
-import { doc, updateDoc, arrayUnion, getDoc, runTransaction } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, runTransaction } from 'firebase/firestore';
 import type { UserProfile } from '@/types';
 import type { Course } from '@/types/course';
 
-interface CartItem extends Course {
+export interface CartItem extends Course {
     imageUrl: string;
     imageHint: string;
     priceInCab: number;
@@ -18,7 +17,7 @@ interface CartItem extends Course {
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (item: any) => void;
+  addToCart: (item: CartItem) => void;
   removeFromCart: (itemId: string) => void;
   checkout: () => Promise<void>;
   isCheckingOut: boolean;

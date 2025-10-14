@@ -15,14 +15,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ShoppingCart, Gem } from "lucide-react";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+import type { CartItem } from "@/context/cart-context";
 
 // In a real app, prices would come from the course data itself.
-// Here we'll map them based on placeholder images for the prototype.
-const coursePrices: Record<string, number> = {
-    "course-placeholder-1": 100,
-    "course-placeholder-2": 150,
-    "course-placeholder-3": 120,
+const getCoursePrice = (courseId: string): number => {
+    // Simple hash function to get a deterministic price
+    let hash = 0;
+    for (let i = 0; i < courseId.length; i++) {
+        const char = courseId.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; 
+    }
+    const prices = [100, 120, 150, 180, 200];
+    return prices[Math.abs(hash) % prices.length];
 }
+
 
 export default function MarketplacePage() {
   const firestore = useFirestore();
@@ -42,13 +49,7 @@ export default function MarketplacePage() {
   };
 
   const isCourseInCart = (courseId: string) => {
-    // This logic is simplified for the prototype. 
-    // In a real app, you would match against a real course ID.
-    // For now, we match against placeholder IDs derived from index.
-    return cartItems.some(item => {
-        const cartItemIndex = parseInt(item.id.split('-')[2], 10) - 1;
-        return cartItemIndex === (courses?.findIndex(c => c.id === courseId) ?? -1) % 3;
-    });
+    return cartItems.some(item => item.id === courseId);
   };
 
   if (isLoading) {
@@ -72,9 +73,16 @@ export default function MarketplacePage() {
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {courses?.map((course, index) => {
           const courseImage = getCourseImage(index);
-          const price = coursePrices[courseImage.id] || 0;
+          const price = getCoursePrice(course.id);
           const isInCart = isCourseInCart(course.id);
           
+          const cartItem: CartItem = {
+              ...course,
+              imageUrl: courseImage.imageUrl,
+              imageHint: courseImage.imageHint,
+              priceInCab: price,
+          }
+
           return (
             <Card key={course.id} className="flex flex-col overflow-hidden">
               <div className="relative">
@@ -99,7 +107,7 @@ export default function MarketplacePage() {
                         <span>{price}</span>
                     </div>
                     <Button 
-                      onClick={() => addToCart({ ...courseImage, description: course.title, id: course.id, priceInCab: price})} 
+                      onClick={() => addToCart(cartItem)} 
                       disabled={isInCart}
                     >
                         <ShoppingCart className="mr-2 h-4 w-4" />

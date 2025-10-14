@@ -36,43 +36,41 @@ export function CartButton() {
                     )}
                 </Button>
             </SheetTrigger>
-            <SheetContent>
+            <SheetContent className="flex flex-col">
                 <SheetHeader>
                     <SheetTitle>My Cart ({cartCount})</SheetTitle>
                 </SheetHeader>
-                <Separator className="my-4" />
                 {cartCount > 0 ? (
                     <>
-                        <ScrollArea className="h-[calc(100vh-200px)]">
-                            <div className="flex flex-col gap-6 pr-4">
+                        <ScrollArea className="flex-1 -mr-6">
+                            <div className="flex flex-col gap-6 pr-6">
                                 {cartItems.map(item => (
                                     <div key={item.id} className="flex gap-4">
                                         <Image
                                             src={item.imageUrl}
                                             alt={item.title}
-                                            width={120}
-                                            height={80}
+                                            width={100}
+                                            height={60}
                                             className="rounded-md object-cover aspect-video"
                                         />
                                         <div className="flex flex-col justify-between flex-1">
                                             <div>
-                                                <h4 className="font-semibold text-sm leading-tight">{item.title}</h4>
+                                                <h4 className="font-semibold text-sm leading-tight line-clamp-2">{item.title}</h4>
                                                 <div className="flex items-center gap-1 text-primary font-bold text-sm mt-1">
                                                     <Gem className="h-3 w-3" />
                                                     <span>{item.priceInCab}</span>
                                                 </div>
                                             </div>
                                         </div>
-                                        <Button variant="ghost" size="icon" className="self-center" onClick={() => removeFromCart(item.id)}>
+                                        <Button variant="ghost" size="icon" className="self-center shrink-0" onClick={() => removeFromCart(item.id)}>
                                             <Trash2 className="h-4 w-4 text-muted-foreground" />
                                         </Button>
                                     </div>
                                 ))}
                             </div>
                         </ScrollArea>
-                        <SheetFooter className='mt-4'>
-                            <div className="w-full flex flex-col gap-4">
-                                <Separator />
+                        <SheetFooter>
+                            <div className="w-full flex flex-col gap-4 border-t pt-4">
                                 <div className="flex justify-between items-center font-bold text-lg">
                                     <span>Total</span>
                                     <div className="flex items-center gap-2 text-primary">
