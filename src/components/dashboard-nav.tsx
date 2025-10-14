@@ -13,7 +13,8 @@ import {
   Users,
   BarChart3,
   GraduationCap,
-  PlusCircle
+  PlusCircle,
+  Library,
 } from "lucide-react"
 
 import {
@@ -25,6 +26,7 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/add-course", label: "Add Course", icon: PlusCircle },
+  { href: "/dashboard/courses", label: "Courses", icon: Library },
   { href: "/dashboard/course-creator", label: "Course Creator", icon: BookOpen },
   { href: "/dashboard/master-course-creator", label: "Master Courses", icon: BookMarked },
   { href: "/dashboard/roadmap-creator", label: "Roadmaps", icon: Waypoints },
