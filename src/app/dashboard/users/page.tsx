@@ -2,6 +2,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useFirestore, useUser, useDoc } from '@/firebase';
 import { useCollection } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
@@ -46,6 +47,7 @@ import { Button } from '@/components/ui/button';
 
 export default function UsersPage() {
   const firestore = useFirestore();
+  const router = useRouter();
   const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -91,6 +93,10 @@ export default function UsersPage() {
         return 'secondary';
     }
   }
+  
+  const handleEditClick = (userId: string) => {
+    router.push(`/dashboard/users/edit/${userId}`);
+  };
   
   const handleDeleteClick = (user: UserProfile) => {
     setUserToDelete(user);
@@ -206,7 +212,7 @@ export default function UsersPage() {
                                 </div>
                             </TableCell>
                             <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" disabled>
+                                <Button variant="ghost" size="icon" onClick={() => handleEditClick(user.userId)}>
                                     <Edit className="h-4 w-4" />
                                 </Button>
                                 <Button 
