@@ -37,10 +37,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2, Edit } from 'lucide-react';
 
 export default function CoursesPage() {
   const firestore = useFirestore();
+  const router = useRouter();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
@@ -53,6 +54,10 @@ export default function CoursesPage() {
 
   const handleDeleteClick = (course: Course) => {
     setCourseToDelete(course);
+  };
+
+  const handleEditClick = (courseId: string) => {
+    router.push(`/dashboard/courses/edit/${courseId}`);
   };
 
   const confirmDelete = async () => {
@@ -119,6 +124,14 @@ export default function CoursesPage() {
                             {course.difficulty && <Badge variant="secondary">{course.difficulty}</Badge>}
                         </TableCell>
                         <TableCell className="text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleEditClick(course.id)}
+                           >
+                            <Edit className="h-4 w-4" />
+                            <span className="sr-only">Edit Course</span>
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="icon" 
