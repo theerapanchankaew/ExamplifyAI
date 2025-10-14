@@ -7,12 +7,18 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser } from '@/firebase';
 import { doc, updateDoc, arrayUnion, getDoc, runTransaction } from 'firebase/firestore';
 import type { UserProfile } from '@/types';
+import type { Course } from '@/types/course';
 
-interface CartItem extends ImagePlaceholder {}
+interface CartItem extends Course {
+    imageUrl: string;
+    imageHint: string;
+    priceInCab: number;
+}
+
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (item: ImagePlaceholder) => void;
+  addToCart: (item: any) => void;
   removeFromCart: (itemId: string) => void;
   checkout: () => Promise<void>;
   isCheckingOut: boolean;
@@ -37,21 +43,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const addToCart = (item: ImagePlaceholder) => {
+  const addToCart = (item: CartItem) => {
     setCartItems(prevItems => {
       if (prevItems.find(cartItem => cartItem.id === item.id)) {
         toast({
             variant: "default",
             title: "Already in Cart",
-            description: `"${item.description}" is already in your cart.`,
+            description: `"${item.title}" is already in your cart.`,
         });
         return prevItems;
       }
       toast({
         title: "Added to Cart",
-        description: `"${item.description}" has been added to your cart.`,
+        description: `"${item.title}" has been added to your cart.`,
       });
-      return [...prevItems, { ...item }];
+      return [...prevItems, item];
     });
   };
 
@@ -62,7 +68,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             toast({
                 variant: 'destructive',
                 title: 'Removed from Cart',
-                description: `"${itemToRemove.description}" has been removed.`,
+                description: `"${itemToRemove.title}" has been removed.`,
             })
         }
         return prevItems.filter(item => item.id !== itemId)
@@ -100,9 +106,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
           throw new Error("Insufficient CAB tokens.");
         }
         
-        // This logic is flawed because placeholder IDs don't map to real course IDs.
-        // For this prototype, we'll create a dummy mapping.
-        // 'course-placeholder-1' -> 'course-1' etc.
         const courseIdsToEnroll = cartItems.map(item => item.id);
 
 

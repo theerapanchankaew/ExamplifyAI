@@ -49,14 +49,14 @@ export function CartButton() {
                                     <div key={item.id} className="flex gap-4">
                                         <Image
                                             src={item.imageUrl}
-                                            alt={item.description}
+                                            alt={item.title}
                                             width={120}
                                             height={80}
                                             className="rounded-md object-cover aspect-video"
                                         />
                                         <div className="flex flex-col justify-between flex-1">
                                             <div>
-                                                <h4 className="font-semibold text-sm leading-tight">{item.description}</h4>
+                                                <h4 className="font-semibold text-sm leading-tight">{item.title}</h4>
                                                 <div className="flex items-center gap-1 text-primary font-bold text-sm mt-1">
                                                     <Gem className="h-3 w-3" />
                                                     <span>{item.priceInCab}</span>
