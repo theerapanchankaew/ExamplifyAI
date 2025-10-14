@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -38,6 +39,7 @@ type EnrichedLesson = Lesson & {
   courseTitle?: string;
   courseDifficulty?: string;
   courseCompetency?: string;
+  courseCode?: string;
 };
 
 export default function LessonsPage() {
@@ -63,6 +65,7 @@ export default function LessonsPage() {
       courseTitle: coursesMap.get(lesson.courseId)?.title || 'Unknown Course',
       courseDifficulty: coursesMap.get(lesson.courseId)?.difficulty,
       courseCompetency: coursesMap.get(lesson.courseId)?.competency,
+      courseCode: coursesMap.get(lesson.courseId)?.courseCode,
     }));
   }, [lessons, courses]);
 
@@ -89,7 +92,7 @@ export default function LessonsPage() {
                   <TableHead>Lesson Title</TableHead>
                   <TableHead>Course</TableHead>
                   <TableHead>Competency</TableHead>
-                  <TableHead>Course ID</TableHead>
+                  <TableHead>Course Code</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -102,8 +105,8 @@ export default function LessonsPage() {
                       <TableCell>
                         {lesson.courseCompetency && <Badge variant="outline">{lesson.courseCompetency}</Badge>}
                       </TableCell>
-                      <TableCell className="font-mono text-xs" title={lesson.courseId}>
-                        {lesson.courseId.substring(0, 8)}...
+                      <TableCell className="font-mono text-xs">
+                        {lesson.courseCode || 'N/A'}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

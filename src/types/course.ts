@@ -5,4 +5,5 @@ export type Course = {
   difficulty: 'Beginner' | 'Intermediate' | 'Expert';
   competency: string;
   description?: string;
+  courseCode?: string;
 };
