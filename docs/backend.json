@@ -46,6 +46,10 @@
           "type": "string",
           "description": "Unique identifier for the course entity."
         },
+        "courseCode": {
+            "type": "string",
+            "description": "A human-readable code for the course, similar to a library classification number."
+        },
         "title": {
           "type": "string",
           "description": "The title of the course."
@@ -61,6 +65,7 @@
       },
       "required": [
         "id",
+        "courseCode",
         "title",
         "difficulty",
         "competency"

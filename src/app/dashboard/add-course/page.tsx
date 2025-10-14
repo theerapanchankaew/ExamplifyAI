@@ -30,6 +30,25 @@ const formSchema = z.object({
   creativity: z.number().min(0).max(1),
 })
 
+function generateCourseCode(topic: string): string {
+    // Remove common words and special characters
+    const cleanTopic = topic.toLowerCase()
+      .replace(/\b(introduction to|quality|management|system)\b/g, '')
+      .replace(/[^a-z0-9\s]/g, '');
+  
+    // Take the first letters of the remaining words and numbers
+    const parts = cleanTopic.split(' ').filter(Boolean);
+    const code = parts.map(part => {
+      if (isNaN(parseInt(part))) {
+        return part.charAt(0);
+      }
+      return part;
+    }).join('').toUpperCase();
+  
+    return code || 'GEN'; // Fallback code
+  }
+  
+
 export default function AiCourseCreatorPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -73,6 +92,7 @@ export default function AiCourseCreatorPage() {
       const batch = writeBatch(firestore);
       const difficulty = form.getValues('difficulty');
       const topic = form.getValues('topic');
+      const courseCode = generateCourseCode(topic);
   
       // 1. Create Course Ref
       const courseRef = doc(collection(firestore, "courses"));
@@ -142,6 +162,7 @@ export default function AiCourseCreatorPage() {
         description: course.description,
         difficulty: difficulty,
         competency: topic,
+        courseCode: courseCode,
       });
   
       // 6. Commit the entire batch
