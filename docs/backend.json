@@ -12,7 +12,8 @@
         },
         "role": {
           "type": "string",
-          "description": "The role of the user (e.g., Admin, Instructor, Student)."
+          "description": "The role of the user (e.g., Admin, Instructor, Student, Examinee).",
+          "enum": ["admin", "instructor", "student", "examinee"]
         },
         "email": {
           "type": "string",
@@ -27,6 +28,10 @@
             "type": "string",
             "format": "uri",
             "description": "URL to the user's profile picture."
+        },
+        "cabTokens": {
+            "type": "number",
+            "description": "The number of CAB tokens the user has."
         }
       },
       "required": [
@@ -554,3 +559,5 @@
     }
   }
 }
+
+    

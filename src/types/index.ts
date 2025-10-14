@@ -7,7 +7,7 @@ export type UserProfile = {
   userId: string;
   name: string;
   email: string;
-  role: 'student' | 'admin' | 'instructor';
+  role: 'student' | 'admin' | 'instructor' | 'examinee';
   cabTokens?: number;
   enrolledCourseIds?: string[];
   mandatoryLearningPath?: string[];
@@ -28,3 +28,5 @@ export type Attempt = {
 };
 
 export type { Roadmap } from './roadmap';
+
+    

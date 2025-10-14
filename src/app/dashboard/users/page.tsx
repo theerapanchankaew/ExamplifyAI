@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2, Users, Gem } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { PlaceholderContent } from '@/components/placeholder-content';
 
@@ -66,6 +66,8 @@ export default function UsersPage() {
         return 'secondary';
       case 'student':
         return 'outline';
+      case 'examinee':
+        return 'destructive';
       default:
         return 'secondary';
     }
@@ -112,9 +114,10 @@ export default function UsersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[350px]">User</TableHead>
+                    <TableHead className="w-[300px]">User</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead className="text-right">CAB Tokens</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -138,12 +141,18 @@ export default function UsersPage() {
                               {user.role || 'N/A'}
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-right">
+                             <div className="flex items-center justify-end gap-2 font-mono">
+                                <Gem className="h-4 w-4 text-primary"/>
+                                <span>{user.cabTokens ?? 0}</span>
+                             </div>
+                          </TableCell>
                         </TableRow>
                       );
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-24 text-center">
+                      <TableCell colSpan={4} className="h-24 text-center">
                         No users found.
                       </TableCell>
                     </TableRow>
@@ -156,3 +165,5 @@ export default function UsersPage() {
     </div>
   );
 }
+
+    
