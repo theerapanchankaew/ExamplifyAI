@@ -8,7 +8,8 @@ import Link from "next/link";
 import { PlaceHolderImages, type ImagePlaceholder } from "@/lib/placeholder-images";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { useIsClient } from "@/hooks/use-is-client";
-import { Gem } from "lucide-react";
+import { Gem, ShoppingCart } from "lucide-react";
+import { useCart } from "@/context/cart-context";
 
 const featuredCourseIds = ['course-placeholder-1', 'course-placeholder-2', 'course-placeholder-3'];
 
@@ -19,6 +20,7 @@ const featuredCourses: ImagePlaceholder[] = featuredCourseIds
 
 export default function StudentDashboardPage() {
   const isClient = useIsClient();
+  const { addToCart } = useCart();
 
   return (
     <div className="flex flex-col gap-8">
@@ -46,7 +48,10 @@ export default function StudentDashboardPage() {
                                <Gem className="h-5 w-5" />
                                <span>{course.priceInCab ?? 'N/A'}</span>
                             </div>
-                            <Button>Enroll Now</Button>
+                            <Button onClick={() => addToCart(course)}>
+                                <ShoppingCart className="mr-2 h-4 w-4" />
+                                Enroll Now
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
