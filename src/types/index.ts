@@ -22,3 +22,5 @@ export type Attempt = {
     pass: boolean;
     timestamp?: Timestamp; // Timestamps from firestore will be of this type
 };
+
+export type { Roadmap } from './roadmap';
