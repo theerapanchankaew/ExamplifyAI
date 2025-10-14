@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useState } from "react"
@@ -51,7 +52,7 @@ const jsonImportSchema = z.object({
   taTechnicalArea: z.string(),
   isicCode: z.string(),
   passingScore: z.number(),
-  learningMaterialUrl: z.string().url().optional(),
+  learningMaterialUrl: z.string().optional(),
   questions: z.array(jsonQuestionSchema),
 });
 
@@ -496,3 +497,5 @@ export default function AiCourseCreatorPage() {
     </Tabs>
   )
 }
+
+    
