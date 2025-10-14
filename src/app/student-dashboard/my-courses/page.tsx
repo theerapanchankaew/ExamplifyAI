@@ -1,12 +1,14 @@
+
 'use client'
 
 import { useMemoFirebase } from "@/firebase/provider";
-import { useCollection } from "@/firebase";
+import { useCollection, useDoc, useUser } from "@/firebase";
 import { useFirestore } from "@/firebase/provider";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, documentId } from "firebase/firestore";
 import type { Course } from "@/types/course";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import type { UserProfile } from "@/types";
 
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,14 +24,24 @@ export default function MyCoursesPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const [coursesWithExams, setCoursesWithExams] = useState<CourseWithExam[]>([]);
-  
+  const { user } = useUser();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+  const { data: userProfile, isLoading: profileLoading } = useDoc<UserProfile>(userDocRef);
+
+  const enrolledCourseIds = useMemo(() => userProfile?.enrolledCourseIds || [], [userProfile]);
+
   const coursesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'courses');
-  }, [firestore]);
+    if (!firestore || enrolledCourseIds.length === 0) return null;
+    return query(collection(firestore, 'courses'), where(documentId(), 'in', enrolledCourseIds));
+  }, [firestore, enrolledCourseIds]);
 
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
+
+  const [coursesWithExams, setCoursesWithExams] = useState<CourseWithExam[]>([]);
 
   useEffect(() => {
     const findExams = async () => {
@@ -42,11 +54,10 @@ export default function MyCoursesPage() {
             const q = query(examsRef, where("courseId", "==", course.id));
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
-              // Assuming one exam per course for now
               const examDoc = querySnapshot.docs[0];
               return { ...course, examId: examDoc.id };
             }
-            return { ...course, examId: undefined, examError: true }; // No exam found
+            return { ...course, examId: undefined, examError: true };
           } catch (error) {
             console.error(`Error finding exam for course ${course.id}:`, error);
             return { ...course, examId: undefined, examError: true };
@@ -56,13 +67,15 @@ export default function MyCoursesPage() {
       setCoursesWithExams(enrichedCourses);
     };
 
-    findExams();
+    if (courses) {
+        findExams();
+    }
   }, [courses, firestore]);
 
   const getCourseImage = (index: number) => {
     const imageId = `course-placeholder-${(index % 3) + 1}`;
     const image = PlaceHolderImages.find(img => img.id === imageId);
-    return image || PlaceHolderImages[2]; // fallback to a default image
+    return image || PlaceHolderImages[2];
   };
   
   const handleStartExam = (examId?: string, examError?: boolean) => {
@@ -77,7 +90,7 @@ export default function MyCoursesPage() {
     }
   }
 
-  const isLoading = coursesLoading || (courses && courses.length > 0 && coursesWithExams.length === 0);
+  const isLoading = profileLoading || coursesLoading || (courses && coursesWithExams.length < courses.length);
 
   if (isLoading) {
     return (
@@ -90,13 +103,13 @@ export default function MyCoursesPage() {
     );
   }
 
-  if (!courses || courses.length === 0) {
+  if (!userProfile || !courses || courses.length === 0) {
     return (
         <div className="flex h-[60vh] w-full items-center justify-center rounded-lg border-2 border-dashed">
             <div className="text-center">
                 <BookOpen className="mx-auto h-12 w-12 text-muted-foreground" />
                 <h2 className="mt-4 text-2xl font-bold font-headline tracking-tight">No Courses Found</h2>
-                <p className="mt-2 text-muted-foreground">You are not enrolled in any courses yet. Browse the marketplace to get started.</p>
+                <p className="mt-2 text-muted-foreground">You have not enrolled in any courses yet. Browse the marketplace to get started.</p>
                 <Button className="mt-6" onClick={() => router.push('/student-dashboard/marketplace')}>Browse Marketplace</Button>
             </div>
         </div>

@@ -4,13 +4,18 @@
 import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 import type { ImagePlaceholder } from '@/lib/placeholder-images';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore, useUser } from '@/firebase';
+import { doc, updateDoc, arrayUnion, getDoc, runTransaction } from 'firebase/firestore';
+import type { UserProfile } from '@/types';
 
 interface CartItem extends ImagePlaceholder {}
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (item: ImagePlaceholder) => void;
+  addToCart: (item: Imageplaceholder) => void;
   removeFromCart: (itemId: string) => void;
+  checkout: () => Promise<void>;
+  isCheckingOut: boolean;
   cartCount: number;
   total: number;
 }
@@ -27,11 +32,13 @@ export function useCart() {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
+  const { user } = useUser();
 
   const addToCart = (item: ImagePlaceholder) => {
     setCartItems(prevItems => {
-      // Check if item is already in cart
       if (prevItems.find(cartItem => cartItem.id === item.id)) {
         toast({
             variant: "default",
@@ -66,10 +73,65 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return cartItems.reduce((acc, item) => acc + (item.priceInCab || 0), 0);
   }, [cartItems]);
 
+  const checkout = async () => {
+    if (!user || !firestore) {
+      toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to checkout.' });
+      return;
+    }
+    if (cartItems.length === 0) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Your cart is empty.' });
+      return;
+    }
+
+    setIsCheckingOut(true);
+    const userDocRef = doc(firestore, 'users', user.uid);
+
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const userDoc = await transaction.get(userDocRef);
+        if (!userDoc.exists()) {
+          throw new Error("User profile does not exist!");
+        }
+
+        const userData = userDoc.data() as UserProfile;
+        const currentTokens = userData.cabTokens || 0;
+
+        if (currentTokens < total) {
+          throw new Error("Insufficient CAB tokens.");
+        }
+
+        const newTokens = currentTokens - total;
+        const courseIdsToEnroll = cartItems.map(item => item.id.replace('course-placeholder-', 'course-'));
+        
+        transaction.update(userDocRef, { 
+            cabTokens: newTokens,
+            enrolledCourseIds: arrayUnion(...courseIdsToEnroll)
+        });
+      });
+
+      toast({
+        title: 'Checkout Successful!',
+        description: `You have enrolled in ${cartItems.length} new course(s).`,
+      });
+      setCartItems([]);
+    } catch (error: any) {
+      console.error("Checkout failed: ", error);
+      toast({
+        variant: 'destructive',
+        title: 'Checkout Failed',
+        description: error.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const value = {
     cartItems,
     addToCart,
     removeFromCart,
+    checkout,
+    isCheckingOut,
     cartCount: cartItems.length,
     total,
   };

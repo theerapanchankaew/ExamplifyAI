@@ -9,6 +9,7 @@ export type UserProfile = {
   email: string;
   role: 'student' | 'admin' | 'instructor';
   cabTokens?: number;
+  enrolledCourseIds?: string[];
   mandatoryLearningPath?: string[];
   voluntaryLearningPath?: string[];
   avatarUrl?: string;

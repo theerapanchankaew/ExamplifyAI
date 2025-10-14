@@ -2,7 +2,7 @@
 'use client';
 
 import Image from 'next/image';
-import { ShoppingCart, Trash2, Gem } from "lucide-react";
+import { ShoppingCart, Trash2, Gem, Loader2 } from "lucide-react";
 import { useCart } from "@/context/cart-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
 
 export function CartButton() {
-    const { cartItems, cartCount, total, removeFromCart } = useCart();
+    const { cartItems, cartCount, total, removeFromCart, checkout, isCheckingOut } = useCart();
 
     return (
         <Sheet>
@@ -80,7 +80,10 @@ export function CartButton() {
                                         <span>{total}</span>
                                     </div>
                                 </div>
-                                <Button className="w-full" size="lg">Checkout</Button>
+                                <Button className="w-full" size="lg" onClick={checkout} disabled={isCheckingOut}>
+                                    {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Checkout
+                                </Button>
                             </div>
                         </SheetFooter>
                     </>
