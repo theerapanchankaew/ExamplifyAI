@@ -32,6 +32,13 @@
         "cabTokens": {
             "type": "number",
             "description": "The number of CAB tokens the user has."
+        },
+        "enrolledCourseIds": {
+            "type": "array",
+            "description": "List of course IDs the user is enrolled in.",
+            "items": {
+                "type": "string"
+            }
         }
       },
       "required": [
@@ -58,6 +65,10 @@
         "title": {
           "type": "string",
           "description": "The title of the course."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the course."
         },
         "difficulty": {
           "type": "string",
@@ -331,18 +342,32 @@
           "type": "string",
           "description": "The title of the master course."
         },
-        "requiredPairs": {
+        "facultyCode": {
+          "type": "string",
+          "description": "A code for the faculty or department offering the course."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the master course."
+        },
+        "requiredCompetencies": {
           "type": "array",
-          "description": "The required TA/ISIC pairs for the master course.",
+          "description": "The required TA/ISIC competency pairs for the master course.",
           "items": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "taCode": { "type": "string" },
+              "isicCode": { "type": "string" }
+            },
+            "required": ["taCode", "isicCode"]
           }
         }
       },
       "required": [
         "id",
         "title",
-        "requiredPairs"
+        "facultyCode",
+        "requiredCompetencies"
       ]
     },
     "MasterCertificate": {
