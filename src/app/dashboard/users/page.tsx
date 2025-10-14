@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { PlaceholderContent } from '@/components/placeholder-content';
 
@@ -89,58 +89,70 @@ export default function UsersPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>User Management</CardTitle>
-        <CardDescription>
-          A list of all the users in the system.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[350px]">User</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users && users.length > 0 ? (
-                  users.map((user, index) => {
-                    const avatar = getAvatarForUser(user, index);
-                    return (
-                      <TableRow key={user.userId}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
-                              <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
-                            </Avatar>
-                            <span className="font-medium">{user.name || 'N/A'}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{user.email || 'N/A'}</TableCell>
-                        <TableCell>
-                          <Badge variant={getRoleVariant(user.role)}>
-                            {user.role || 'N/A'}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : (
+    <div className="flex flex-col gap-8">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold font-headline">{users?.length ?? '...'}</div>
+            <p className="text-xs text-muted-foreground">all users in the system</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>User Management</CardTitle>
+          <CardDescription>
+            A list of all the users in the system.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center">
-                      No users found.
-                    </TableCell>
+                    <TableHead className="w-[350px]">User</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-      </CardContent>
-    </Card>
+                </TableHeader>
+                <TableBody>
+                  {users && users.length > 0 ? (
+                    users.map((user, index) => {
+                      const avatar = getAvatarForUser(user, index);
+                      return (
+                        <TableRow key={user.userId}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar>
+                                <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
+                                <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium">{user.name || 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{user.email || 'N/A'}</TableCell>
+                          <TableCell>
+                            <Badge variant={getRoleVariant(user.role)}>
+                              {user.role || 'N/A'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="h-24 text-center">
+                        No users found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
