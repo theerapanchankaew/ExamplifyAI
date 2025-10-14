@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirestore, useDoc, useCollection, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
-import { doc, collection, query, where, documentId, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, where, documentId, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -16,6 +16,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import type { UserProfile } from '@/types';
+
 
 // Matches backend.json entities
 type Exam = { id: string; courseId: string; questionIds: string[] };
@@ -33,6 +35,14 @@ export default function ExamPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  
+  // Get user profile to check tokens
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+  const { data: userProfile } = useDoc<UserProfile>(userDocRef);
+
 
   // 1. Fetch the exam document
   const examDocRef = useMemoFirebase(() => {
@@ -74,9 +84,22 @@ export default function ExamPage() {
   };
 
   const handleSubmit = async () => {
-    if (!user || !exam || !sortedQuestions) return;
+    if (!user || !exam || !sortedQuestions || !userProfile || !userDocRef) return;
     
     setIsSubmitting(true);
+    const examCost = 10; // Let's say each exam costs 10 tokens
+
+    if ((userProfile.cabTokens ?? 0) < examCost) {
+        toast({
+            variant: 'destructive',
+            title: "Insufficient Tokens",
+            description: `You need ${examCost} CAB tokens to submit this exam.`,
+        });
+        setIsSubmitting(false);
+        return;
+    }
+
+
     let correctCount = 0;
     sortedQuestions.forEach(q => {
       if (answers[q.id] === q.correctAnswer) {
@@ -98,8 +121,19 @@ export default function ExamPage() {
     };
 
     try {
+      const batch = writeBatch(firestore);
+
+      // 1. Add the attempt document
       const attemptsCollectionRef = collection(firestore, 'attempts');
-      await addDoc(attemptsCollectionRef, attemptData);
+      const attemptDocRef = doc(attemptsCollectionRef);
+      batch.set(attemptDocRef, attemptData);
+
+      // 2. Deduct tokens from user's profile
+      const newTokens = (userProfile.cabTokens ?? 0) - examCost;
+      batch.update(userDocRef, { cabTokens: newTokens });
+
+      await batch.commit();
+
       toast({
         title: "Exam Submitted!",
         description: `Your score is ${Math.round(score)}%. You have ${pass ? 'passed' : 'failed'}.`,
@@ -107,9 +141,9 @@ export default function ExamPage() {
       router.push('/student-dashboard/my-history');
     } catch (e) {
        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: 'attempts',
-            operation: 'create',
-            requestResourceData: attemptData,
+            path: 'batch-write (attempts, users)',
+            operation: 'write',
+            requestResourceData: { attempt: attemptData, userId: user.uid },
         }));
     } finally {
       setIsSubmitting(false);
@@ -189,7 +223,7 @@ export default function ExamPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you ready to submit?</AlertDialogTitle>
             <AlertDialogDescription>
-              You cannot change your answers after submitting. Please review your answers before confirming.
+              You cannot change your answers after submitting. This will cost 10 CAB tokens.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
