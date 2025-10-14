@@ -2,6 +2,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useFirestore } from '@/firebase';
 import { useCollection } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
@@ -57,6 +58,7 @@ type EnrichedLesson = Lesson & {
 
 export default function LessonsPage() {
   const firestore = useFirestore();
+  const router = useRouter();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [lessonToDelete, setLessonToDelete] = useState<EnrichedLesson | null>(null);
@@ -114,12 +116,9 @@ export default function LessonsPage() {
     }
   };
 
-  const handleEditClick = () => {
-    toast({
-      title: "Coming Soon!",
-      description: "The edit functionality is currently under development.",
-    })
-  }
+  const handleEditClick = (lessonId: string) => {
+    router.push(`/dashboard/lessons/edit/${lessonId}`);
+  };
 
   return (
     <>
@@ -169,7 +168,7 @@ export default function LessonsPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={handleEditClick}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditClick(lesson.id)}>Edit</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleDeleteClick(lesson)} className="text-destructive focus:text-destructive">Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
