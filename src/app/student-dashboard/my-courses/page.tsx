@@ -3,30 +3,81 @@
 import { useMemoFirebase } from "@/firebase/provider";
 import { useCollection } from "@/firebase";
 import { useFirestore } from "@/firebase/provider";
-import { collection } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import type { Course } from "@/types/course";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BookOpen } from "lucide-react";
+import { Loader2, BookOpen, AlertTriangle } from "lucide-react";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { useToast } from "@/hooks/use-toast";
+
+type CourseWithExam = Course & { examId?: string; examError?: boolean };
 
 export default function MyCoursesPage() {
   const firestore = useFirestore();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [coursesWithExams, setCoursesWithExams] = useState<CourseWithExam[]>([]);
+  
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'courses');
   }, [firestore]);
 
-  const { data: courses, isLoading } = useCollection<Course>(coursesQuery);
+  const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
+
+  useEffect(() => {
+    const findExams = async () => {
+      if (!firestore || !courses) return;
+
+      const enrichedCourses = await Promise.all(
+        courses.map(async (course) => {
+          try {
+            const examsRef = collection(firestore, 'exams');
+            const q = query(examsRef, where("courseId", "==", course.id));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+              // Assuming one exam per course for now
+              const examDoc = querySnapshot.docs[0];
+              return { ...course, examId: examDoc.id };
+            }
+            return { ...course, examId: undefined, examError: true }; // No exam found
+          } catch (error) {
+            console.error(`Error finding exam for course ${course.id}:`, error);
+            return { ...course, examId: undefined, examError: true };
+          }
+        })
+      );
+      setCoursesWithExams(enrichedCourses);
+    };
+
+    findExams();
+  }, [courses, firestore]);
 
   const getCourseImage = (index: number) => {
     const imageId = `course-placeholder-${(index % 3) + 1}`;
     const image = PlaceHolderImages.find(img => img.id === imageId);
     return image || PlaceHolderImages[2]; // fallback to a default image
   };
+  
+  const handleStartExam = (examId?: string, examError?: boolean) => {
+    if (examError) {
+       toast({
+         variant: 'destructive',
+         title: "Exam Not Found",
+         description: "An exam has not been configured for this course.",
+       });
+    } else if (examId) {
+      router.push(`/student-dashboard/exam/${examId}`);
+    }
+  }
+
+  const isLoading = coursesLoading || (courses && courses.length > 0 && coursesWithExams.length === 0);
 
   if (isLoading) {
     return (
@@ -46,7 +97,7 @@ export default function MyCoursesPage() {
                 <BookOpen className="mx-auto h-12 w-12 text-muted-foreground" />
                 <h2 className="mt-4 text-2xl font-bold font-headline tracking-tight">No Courses Found</h2>
                 <p className="mt-2 text-muted-foreground">You are not enrolled in any courses yet. Browse the marketplace to get started.</p>
-                <Button className="mt-6">Browse Marketplace</Button>
+                <Button className="mt-6" onClick={() => router.push('/student-dashboard/marketplace')}>Browse Marketplace</Button>
             </div>
         </div>
     );
@@ -60,7 +111,7 @@ export default function MyCoursesPage() {
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {courses.map((course, index) => {
+        {coursesWithExams.map((course, index) => {
           const courseImage = getCourseImage(index);
           return (
             <Card key={course.id} className="flex flex-col overflow-hidden">
@@ -80,7 +131,10 @@ export default function MyCoursesPage() {
                 {course.description && <CardDescription className="line-clamp-3 text-sm mt-1">{course.description}</CardDescription>}
               </CardHeader>
               <CardContent className="flex-grow flex flex-col justify-end">
-                <Button className="w-full mt-4">Start Exam</Button>
+                <Button className="w-full mt-4" onClick={() => handleStartExam(course.examId, course.examError)}>
+                  {course.examError && <AlertTriangle className="mr-2 h-4 w-4" />}
+                  Start Exam
+                </Button>
               </CardContent>
             </Card>
           );
