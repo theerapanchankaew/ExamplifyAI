@@ -29,8 +29,8 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { BookOpen, CheckCircle, Percent, Activity, Loader2 } from "lucide-react"
-import type { Attempt, UserProfile } from "@/types"
+import { BookOpen, CheckCircle, Percent, Activity, Loader2, Users } from "lucide-react"
+import type { UserProfile } from "@/types"
 import type { Course } from '@/types/course'
 import { subDays, format, startOfDay } from 'date-fns'
 import { useMemo } from "react"
@@ -46,12 +46,6 @@ const chartConfig = {
     color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig;
-
-type EnrichedAttempt = Attempt & {
-  userName?: string;
-  courseTitle?: string;
-  userAvatarUrl?: string;
-};
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -72,40 +66,28 @@ export default function DashboardPage() {
   }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
-  const examsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'exams');
-  }, [firestore]);
-  const { data: exams, isLoading: examsLoading } = useCollection<{courseId: string, id: string}>(examsQuery);
-
   const attemptsTodayQuery = useMemoFirebase(() => {
     if (!firestore) return null; 
     return query(collection(firestore, 'attempts'), where('timestamp', '>=', Timestamp.fromDate(todayStart)));
   }, [firestore, todayStart]);
-  const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection<Attempt>(attemptsTodayQuery);
+  const { data: attemptsToday, isLoading: attemptsTodayLoading } = useCollection(attemptsTodayQuery);
 
-  const recentAttemptsQuery = useMemoFirebase(() => {
-    if (!firestore) return null; 
-    return query(collection(firestore, 'attempts'), orderBy('timestamp', 'desc'), limit(5));
+  const recentUsersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    // This is an arbitrary query, replace with a real one like orderBy('createdAt', 'desc') if available
+    return query(collection(firestore, 'users'), limit(5));
   }, [firestore]);
-  const { data: recentAttempts, isLoading: recentAttemptsLoading } = useCollection<Attempt>(recentAttemptsQuery);
+  const { data: recentUsers, isLoading: recentUsersLoading } = useCollection<UserProfile>(recentUsersQuery);
 
-  // Pass rate is now calculated based on today's attempts to avoid broad queries.
   const passRate = useMemo(() => {
     if (!attemptsToday || attemptsToday.length === 0) return 0;
     const passedCount = attemptsToday.filter(attempt => attempt.pass).length;
     return (passedCount / attemptsToday.length) * 100;
   }, [attemptsToday]);
   
-  // Chart data is now calculated based on today's attempts.
-  // This is a simplification. For a 7-day view, a more complex setup would be needed
-  // (e.g., a backend function to aggregate data, or 7 separate queries).
-  // For now, we'll show today's trend for simplicity and to fix the error.
   const chartData = useMemo(() => {
     if (!attemptsToday) return [];
     
-    // This creates a simplified data structure for the chart based on current data.
-    // In a real scenario with a 7-day view, you'd fetch data for each of the last 7 days.
     const last7Days = Array.from({ length: 7 }, (_, i) => {
         const d = subDays(new Date(), 6 - i);
         return startOfDay(d);
@@ -113,19 +95,8 @@ export default function DashboardPage() {
 
     return last7Days.map(date => {
         const dateString = format(date, 'MMM d');
-        const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
         
-        // This will only work for today's data with the current query.
-        // For a full 7-day chart, you would need to query each day.
-        const attemptsOnDate = (date.getDate() === new Date().getDate()) 
-            ? attemptsToday.filter(attempt => {
-                if (!attempt.timestamp) return false;
-                const attemptDate = (attempt.timestamp as unknown as Timestamp)?.toDate();
-                if (!attemptDate) return false;
-                return attemptDate >= date && attemptDate < nextDay;
-            })
-            : [];
-        
+        const attemptsOnDate = (date.getDate() === new Date().getDate()) ? attemptsToday : [];
         const passes = attemptsOnDate.filter(a => a.pass).length;
         
         return {
@@ -137,26 +108,7 @@ export default function DashboardPage() {
 
   }, [attemptsToday]);
   
-  const enrichedRecentAttempts = useMemo<EnrichedAttempt[]>(() => {
-    if (!recentAttempts || !courses || !exams) return [];
-
-    const coursesMap = new Map(courses.map(c => [c.id, c]));
-    const examsMap = new Map(exams.map(e => [e.id, e]));
-
-    return recentAttempts.map(attempt => {
-      const exam = examsMap.get(attempt.examId);
-      const course = exam ? coursesMap.get(exam.courseId) : undefined;
-      
-      return {
-        ...attempt,
-        userName: attempt.userId, // Fallback to userId
-        courseTitle: course?.title || 'Unknown Course',
-        userAvatarUrl: undefined, // No user data available
-      };
-    });
-  }, [recentAttempts, courses, exams]);
-
-  const isLoading = isUserLoading || isProfileLoading || coursesLoading || attemptsTodayLoading || recentAttemptsLoading || examsLoading;
+  const isLoading = isUserLoading || isProfileLoading || coursesLoading || attemptsTodayLoading || recentUsersLoading;
 
   const stats = [
     { title: "Total Courses", value: courses?.length ?? '...', icon: BookOpen },
@@ -164,7 +116,23 @@ export default function DashboardPage() {
     { title: "Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
   ];
 
-  const studentAvatarFallback = PlaceHolderImages.find(img => img.id === 'student-avatar-1');
+  const getAvatarForUser = (user: UserProfile, index: number) => {
+    const imageId = user.role === 'admin' ? 'user-avatar-1' : `student-avatar-1`;
+    return PlaceHolderImages.find(img => img.id === imageId) || PlaceHolderImages[1]; // fallback
+  }
+
+  const getRoleVariant = (role?: string) => {
+    switch (role?.toLowerCase()) {
+      case 'admin':
+        return 'default';
+      case 'instructor':
+        return 'secondary';
+      case 'student':
+        return 'outline';
+      default:
+        return 'secondary';
+    }
+  }
 
   if (isLoading) {
     return (
@@ -193,7 +161,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Activity (Last 7 Days)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Daily Activity</CardTitle>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -213,40 +181,41 @@ export default function DashboardPage() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Recent Exam Attempts</CardTitle>
+            <CardTitle>Recent Examinees</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Examinee</TableHead>
-                    <TableHead>Course</TableHead>
-                    <TableHead className="text-right">Score</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {enrichedRecentAttempts && enrichedRecentAttempts.map((attempt) => (
-                    <TableRow key={attempt.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                           <Avatar className="h-9 w-9">
-                            <AvatarImage src={attempt.userAvatarUrl || studentAvatarFallback?.imageUrl} />
-                            <AvatarFallback>{attempt.userName?.substring(0, 2) || '??'}</AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium truncate w-32">{attempt.userName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell><div className="truncate w-40">{attempt.courseTitle}</div></TableCell>
-                      <TableCell className="text-right font-code">{attempt.score}%</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={attempt.pass ? 'secondary' : 'destructive'}>
-                          {attempt.pass ? 'Passed' : 'Failed'}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {recentUsers && recentUsers.map((user, index) => {
+                     const avatar = getAvatarForUser(user, index);
+                     return (
+                      <TableRow key={user.userId}>
+                         <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                              <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
+                              <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium truncate w-32">{user.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell><div className="truncate w-40">{user.email}</div></TableCell>
+                        <TableCell>
+                           <Badge variant={getRoleVariant(user.role)}>
+                              {user.role || 'N/A'}
+                            </Badge>
+                        </TableCell>
+                      </TableRow>
+                     )
+                    })}
                 </TableBody>
               </Table>
             </div>
@@ -256,5 +225,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-
-    
