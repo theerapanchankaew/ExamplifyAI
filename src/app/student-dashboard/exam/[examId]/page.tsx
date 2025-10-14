@@ -69,7 +69,7 @@ export default function ExamPage() {
 
   const handlePrev = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev + 1);
+      setCurrentQuestionIndex(prev => prev - 1);
     }
   };
 
@@ -90,6 +90,7 @@ export default function ExamPage() {
     const attemptData = {
       userId: user.uid,
       examId: exam.id,
+      courseId: exam.courseId, // Add courseId to the attempt
       score: Math.round(score),
       pass: pass,
       timestamp: serverTimestamp(),
@@ -97,7 +98,8 @@ export default function ExamPage() {
     };
 
     try {
-      await addDoc(collection(firestore, 'attempts'), attemptData);
+      const attemptsCollectionRef = collection(firestore, 'attempts');
+      await addDoc(attemptsCollectionRef, attemptData);
       toast({
         title: "Exam Submitted!",
         description: `Your score is ${Math.round(score)}%. You have ${pass ? 'passed' : 'failed'}.`,

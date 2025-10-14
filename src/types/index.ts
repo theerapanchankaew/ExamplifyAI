@@ -1,4 +1,5 @@
 
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserProfile = {
@@ -18,9 +19,11 @@ export type Attempt = {
     id: string;
     userId: string;
     examId: string;
+    courseId?: string; // Added to link attempt directly to a course
     score: number;
     pass: boolean;
     timestamp?: Timestamp; // Timestamps from firestore will be of this type
+    answers?: Record<string, string>;
 };
 
 export type { Roadmap } from './roadmap';
