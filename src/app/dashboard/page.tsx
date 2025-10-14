@@ -3,7 +3,7 @@
 
 import { useMemoFirebase } from "@/firebase/provider"
 import { useCollection } from "@/firebase"
-import { collection, query, where, limit, orderBy } from "firebase/firestore"
+import { collection, query, limit } from "firebase/firestore"
 import { useFirestore, useUser, useDoc } from "@/firebase"
 import { doc } from 'firebase/firestore';
 import {
