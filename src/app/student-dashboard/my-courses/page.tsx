@@ -7,7 +7,7 @@ import { useFirestore } from "@/firebase/provider";
 import { collection, query, where, getDocs, doc, documentId } from "firebase/firestore";
 import type { Course } from "@/types/course";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { UserProfile } from "@/types";
 
 import Image from "next/image";
