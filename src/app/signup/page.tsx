@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -60,7 +61,8 @@ export default function SignupPage() {
         name: values.name,
         email: values.email,
         role: 'student', // Default role
-        cabTokens: 0, // Default value
+        cabTokens: 1000, // Give initial tokens
+        enrolledCourseIds: [], // Initialize enrolled courses
       });
       
       toast({
