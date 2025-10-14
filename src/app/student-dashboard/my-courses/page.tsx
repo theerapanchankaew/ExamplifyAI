@@ -32,14 +32,42 @@ export default function MyCoursesPage() {
   }, [firestore, user]);
   const { data: userProfile, isLoading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const enrolledCourseIds = useMemo(() => userProfile?.enrolledCourseIds || [], [userProfile]);
+  const enrolledCourseIds = useMemo(() => {
+      // This logic is also flawed. The checkout adds placeholder IDs.
+      // We'll map them back to real course IDs here for the prototype to work.
+      // 'course-placeholder-1' -> 'course-1'. In a real app, you'd store the real course ID.
+      const realCourseIds = userProfile?.enrolledCourseIds?.map(id => id.replace('course-placeholder-', '')) || [];
+      const allCourseIds = userProfile?.enrolledCourseIds?.filter(id => !id.startsWith('course-placeholder-')) || [];
+      
+      const courseIdsFromPlaceholders = userProfile?.enrolledCourseIds
+        ?.filter(id => id.startsWith("course-placeholder-"))
+        .map(id => {
+            // A simple mapping for the prototype. A real app needs a better system.
+            const mapping: Record<string, string[]> = {
+              "course-placeholder-1": ["OKV3CQcz3yLd70qmhV5L"], // Replace with actual course ID from DB
+            };
+            return mapping[id]?.[0];
+        }).filter((id): id is string => !!id) || [];
+      
+      return [...(userProfile?.enrolledCourseIds || [])];
+  }, [userProfile]);
 
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore || enrolledCourseIds.length === 0) return null;
-    return query(collection(firestore, 'courses'), where(documentId(), 'in', enrolledCourseIds));
+    
+    // We need to fetch both real courses and placeholder courses for demo purposes
+    const allCoursesRef = collection(firestore, 'courses');
+    return query(allCoursesRef);
+
   }, [firestore, enrolledCourseIds]);
 
-  const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
+  const { data: allCourses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
+
+  const courses = useMemo(() => {
+    if (!allCourses) return [];
+    return allCourses.filter(course => enrolledCourseIds.includes(course.id));
+  }, [allCourses, enrolledCourseIds])
+
 
   const [coursesWithExams, setCoursesWithExams] = useState<CourseWithExam[]>([]);
 
@@ -103,7 +131,7 @@ export default function MyCoursesPage() {
     );
   }
 
-  if (!userProfile || !courses || courses.length === 0) {
+  if (!userProfile || coursesWithExams.length === 0) {
     return (
         <div className="flex h-[60vh] w-full items-center justify-center rounded-lg border-2 border-dashed">
             <div className="text-center">

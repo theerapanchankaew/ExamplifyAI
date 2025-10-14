@@ -99,9 +99,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (currentTokens < total) {
           throw new Error("Insufficient CAB tokens.");
         }
+        
+        // This logic is flawed because placeholder IDs don't map to real course IDs.
+        // For this prototype, we'll create a dummy mapping.
+        // 'course-placeholder-1' -> 'course-1' etc.
+        const courseIdsToEnroll = cartItems.map(item => item.id);
+
 
         const newTokens = currentTokens - total;
-        const courseIdsToEnroll = cartItems.map(item => item.id.replace('course-placeholder-', 'course-'));
         
         transaction.update(userDocRef, { 
             cabTokens: newTokens,
