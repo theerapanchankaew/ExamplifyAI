@@ -68,13 +68,14 @@ export default function DashboardPage() {
   const sevenDaysAgo = startOfDay(subDays(new Date(), 6));
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // This query is now allowed by the new security rules for admins.
     return query(
       collection(firestore, 'attempts'),
       where('timestamp', '>=', sevenDaysAgo),
       orderBy('timestamp', 'desc')
     );
   }, [firestore]);
-  const { data: recentAttempts, isLoading: attemptsLoading } = useCollection<Attempt>(attemptsQuery);
+  const { data: recentAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
   const recentUsersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -106,7 +107,6 @@ export default function DashboardPage() {
 
   }, [recentAttempts]);
 
-  const attemptsTodayCount = recentAttempts?.filter(a => a.timestamp && startOfDay((a.timestamp as unknown as Timestamp).toDate()).getTime() === startOfDay(new Date()).getTime()).length ?? 0;
   const totalPasses = recentAttempts?.filter(a => a.pass).length ?? 0;
   const overallPassRate = recentAttempts && recentAttempts.length > 0 ? (totalPasses / recentAttempts.length) * 100 : 0;
 
@@ -142,6 +142,13 @@ export default function DashboardPage() {
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
       </div>
     )
+  }
+   if (attemptsError) {
+    return (
+      <div className="flex h-full min-h-[80vh] items-center justify-center text-destructive">
+          <pre className='whitespace-pre-wrap'>{attemptsError.message}</pre>
+      </div>
+    );
   }
 
   return (
