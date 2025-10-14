@@ -102,7 +102,9 @@ export default function LessonsPage() {
                       <TableCell>
                         {lesson.courseCompetency && <Badge variant="outline">{lesson.courseCompetency}</Badge>}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{lesson.courseId}</TableCell>
+                      <TableCell className="font-mono text-xs" title={lesson.courseId}>
+                        {lesson.courseId.substring(0, 8)}...
+                      </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
