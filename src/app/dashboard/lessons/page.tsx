@@ -37,6 +37,7 @@ import {
 type EnrichedLesson = Lesson & {
   courseTitle?: string;
   courseDifficulty?: string;
+  courseCompetency?: string;
 };
 
 export default function LessonsPage() {
@@ -61,6 +62,7 @@ export default function LessonsPage() {
       ...lesson,
       courseTitle: coursesMap.get(lesson.courseId)?.title || 'Unknown Course',
       courseDifficulty: coursesMap.get(lesson.courseId)?.difficulty,
+      courseCompetency: coursesMap.get(lesson.courseId)?.competency,
     }));
   }, [lessons, courses]);
 
@@ -86,7 +88,8 @@ export default function LessonsPage() {
                 <TableRow>
                   <TableHead>Lesson Title</TableHead>
                   <TableHead>Course</TableHead>
-                  <TableHead>Difficulty</TableHead>
+                  <TableHead>Competency</TableHead>
+                  <TableHead>Course ID</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -97,8 +100,9 @@ export default function LessonsPage() {
                       <TableCell className="font-medium">{lesson.title}</TableCell>
                       <TableCell>{lesson.courseTitle}</TableCell>
                       <TableCell>
-                        {lesson.courseDifficulty && <Badge variant="outline">{lesson.courseDifficulty}</Badge>}
+                        {lesson.courseCompetency && <Badge variant="outline">{lesson.courseCompetency}</Badge>}
                       </TableCell>
+                      <TableCell className="font-mono text-xs">{lesson.courseId}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -118,7 +122,7 @@ export default function LessonsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                       No lessons found.
                     </TableCell>
                   </TableRow>
