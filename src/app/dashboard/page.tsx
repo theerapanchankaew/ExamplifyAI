@@ -35,6 +35,7 @@ import type { Course } from '@/types/course'
 import { subDays, format, startOfDay } from 'date-fns'
 import { useMemo } from "react"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
+import { PlaceholderContent } from "@/components/placeholder-content"
 
 const chartConfig = {
   attempts: {
@@ -50,7 +51,7 @@ const chartConfig = {
 
 export default function DashboardPage() {
   const firestore = useFirestore();
-  const { user: authUser, isUserLoading } = useUser();
+  const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
@@ -58,6 +59,7 @@ export default function DashboardPage() {
   }, [firestore, authUser]);
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+  const isAdmin = userProfile?.role === 'admin';
   
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -67,21 +69,20 @@ export default function DashboardPage() {
 
   const sevenDaysAgo = startOfDay(subDays(new Date(), 6));
   const attemptsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    // This query is now allowed by the new security rules for admins.
+    if (!firestore || !isAdmin) return null; // Only fetch if admin
     return query(
       collection(firestore, 'attempts'),
       where('timestamp', '>=', sevenDaysAgo),
       orderBy('timestamp', 'desc')
     );
-  }, [firestore]);
+  }, [firestore, isAdmin]);
   const { data: recentAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
   const recentUsersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'users'), limit(5));
-  }, [firestore]);
-  const { data: recentUsers, isLoading: recentUsersLoading } = useCollection<UserProfile>(recentUsersQuery);
+    if (!firestore || !isAdmin) return null; // Only fetch if admin
+    return query(collection(firestore, 'users'), orderBy('name', 'desc'), limit(5));
+  }, [firestore, isAdmin]);
+  const { data: recentUsers, isLoading: recentUsersLoading, error: usersError } = useCollection<UserProfile>(recentUsersQuery);
   
   // Process data for chart
   const chartData = useMemo(() => {
@@ -89,6 +90,10 @@ export default function DashboardPage() {
         const d = subDays(new Date(), 6 - i);
         return startOfDay(d);
     });
+
+    if (!isAdmin || !recentAttempts) {
+        return last7Days.map(date => ({ date: format(date, 'MMM d'), attempts: 0, passes: 0 }));
+    }
 
     const dailyData = last7Days.map(date => {
         const dateString = format(date, 'MMM d');
@@ -105,17 +110,17 @@ export default function DashboardPage() {
     
     return dailyData;
 
-  }, [recentAttempts]);
+  }, [recentAttempts, isAdmin]);
 
   const totalPasses = recentAttempts?.filter(a => a.pass).length ?? 0;
   const overallPassRate = recentAttempts && recentAttempts.length > 0 ? (totalPasses / recentAttempts.length) * 100 : 0;
 
-  const isLoading = isUserLoading || isProfileLoading || coursesLoading || recentUsersLoading || attemptsLoading;
+  const isLoading = isAuthUserLoading || isProfileLoading || coursesLoading || (isAdmin && (recentUsersLoading || attemptsLoading));
 
   const stats = [
     { title: "Total Courses", value: courses?.length ?? '...', icon: BookOpen },
-    { title: "Attempts (Last 7 Days)", value: recentAttempts?.length ?? '...', icon: Activity },
-    { title: "Pass Rate (Last 7 Days)", value: `${overallPassRate.toFixed(1)}%`, icon: Percent },
+    { title: "Attempts (Last 7 Days)", value: isAdmin ? (recentAttempts?.length ?? '...') : 'N/A', icon: Activity },
+    { title: "Pass Rate (Last 7 Days)", value: isAdmin ? `${overallPassRate.toFixed(1)}%` : 'N/A', icon: Percent },
   ];
 
   const getAvatarForUser = (user: UserProfile, index: number) => {
@@ -143,10 +148,20 @@ export default function DashboardPage() {
       </div>
     )
   }
-   if (attemptsError) {
+   if (!isAdmin) {
     return (
-      <div className="flex h-full min-h-[80vh] items-center justify-center text-destructive">
-          <pre className='whitespace-pre-wrap'>{attemptsError.message}</pre>
+        <PlaceholderContent 
+            title="Access Denied" 
+            description="You do not have permission to view the admin dashboard."
+          />
+    );
+   }
+
+   const dataError = attemptsError || usersError;
+   if (dataError) {
+    return (
+      <div className="flex h-full min-h-[80vh] items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
+          <pre className='whitespace-pre-wrap text-sm'>{dataError.message}</pre>
       </div>
     );
   }
