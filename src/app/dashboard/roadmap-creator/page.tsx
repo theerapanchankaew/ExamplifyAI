@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 import type { Course } from '@/types/course';
 import type { Roadmap } from '@/types/roadmap';
