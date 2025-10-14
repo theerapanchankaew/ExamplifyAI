@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useMemo, useEffect } from 'react';
 import type { ImagePlaceholder } from '@/lib/placeholder-images';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser } from '@/firebase';
@@ -12,7 +12,7 @@ interface CartItem extends ImagePlaceholder {}
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (item: Imageplaceholder) => void;
+  addToCart: (item: ImagePlaceholder) => void;
   removeFromCart: (itemId: string) => void;
   checkout: () => Promise<void>;
   isCheckingOut: boolean;
@@ -125,7 +125,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setIsCheckingOut(false);
     }
   };
-
+  
   const value = {
     cartItems,
     addToCart,
