@@ -29,7 +29,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { BookOpen, CheckCircle, Percent, Activity, Loader2, Users } from "lucide-react"
+import { BookOpen, CheckCircle, Percent, Users as UsersIcon, Loader2 } from "lucide-react"
 import type { UserProfile } from "@/types"
 import type { Course } from '@/types/course'
 import { subDays, format, startOfDay } from 'date-fns'
@@ -161,7 +161,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Daily Activity</CardTitle>
+            <CardTitle className="flex items-center gap-2"><UsersIcon className="h-5 w-5" />Daily Activity</CardTitle>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -181,7 +181,7 @@ export default function DashboardPage() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Recent Examinees</CardTitle>
+            <CardTitle>Recent Users</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
