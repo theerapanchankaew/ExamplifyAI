@@ -3,7 +3,7 @@
 
 import { useMemoFirebase } from "@/firebase/provider"
 import { useCollection } from "@/firebase"
-import { collection, query, limit } from "firebase/firestore"
+import { collection, query, limit, where, Timestamp } from "firebase/firestore"
 import { useFirestore, useUser, useDoc } from "@/firebase"
 import { doc } from 'firebase/firestore';
 import {
@@ -29,10 +29,10 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { BookOpen, CheckCircle, Percent, Users as UsersIcon, Loader2 } from "lucide-react"
-import type { UserProfile } from "@/types"
+import { BookOpen, Activity, Percent, Users as UsersIcon, Loader2 } from "lucide-react"
+import type { UserProfile, Attempt } from "@/types"
 import type { Course } from '@/types/course'
-import { subDays, format, startOfDay } from 'date-fns'
+import { subDays, format, startOfDay, endOfDay } from 'date-fns'
 import { useMemo } from "react"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 
@@ -46,25 +46,6 @@ const chartConfig = {
     color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig;
-
-// Mock data to prevent permission errors
-const generateMockChartData = () => {
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const d = subDays(new Date(), 6 - i);
-      return startOfDay(d);
-  });
-
-  return last7Days.map(date => {
-      const dateString = format(date, 'MMM d');
-      const attempts = Math.floor(Math.random() * 20) + 5;
-      const passes = Math.floor(Math.random() * attempts);
-      return {
-          date: dateString,
-          attempts,
-          passes
-      }
-  });
-};
 
 
 export default function DashboardPage() {
@@ -84,22 +65,58 @@ export default function DashboardPage() {
   }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
+  const todayStart = startOfDay(new Date());
+  const attemptsTodayQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, 'attempts'),
+      where('timestamp', '>=', todayStart)
+    );
+  }, [firestore]);
+  const { data: attemptsTodayData, isLoading: attemptsTodayLoading } = useCollection<Attempt>(attemptsTodayQuery);
+  
   const recentUsersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'users'), limit(5));
   }, [firestore]);
   const { data: recentUsers, isLoading: recentUsersLoading } = useCollection<UserProfile>(recentUsersQuery);
+  
+    // Process data for chart
+  const chartData = useMemo(() => {
+    if (!attemptsTodayData) return [];
+    
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = subDays(new Date(), 6 - i);
+        return startOfDay(d);
+    });
 
-  const chartData = useMemo(() => generateMockChartData(), []);
-  const passRate = 75 + Math.random() * 10; // Mock pass rate
-  const attemptsToday = chartData[chartData.length - 1]?.attempts ?? 0;
+    // This part is now just a sample because querying all attempts is not allowed.
+    // In a real-world scenario, this data would come from a pre-aggregated source
+    // or a backend function. For the UI demo, we generate sample data.
+    return last7Days.map(date => {
+        const dateString = format(date, 'MMM d');
+        const attempts = Math.floor(Math.random() * 20) + 5;
+        const passes = Math.floor(Math.random() * attempts);
+        return {
+            date: dateString,
+            attempts,
+            passes
+        }
+    });
 
-  const isLoading = isUserLoading || isProfileLoading || coursesLoading || recentUsersLoading;
+  }, [attemptsTodayData]);
+
+
+  const attemptsTodayCount = attemptsTodayData?.length ?? 0;
+  const passesTodayCount = attemptsTodayData?.filter(a => a.pass).length ?? 0;
+  const passRateToday = attemptsTodayCount > 0 ? (passesTodayCount / attemptsTodayCount) * 100 : 0;
+
+  const isLoading = isUserLoading || isProfileLoading || coursesLoading || recentUsersLoading || attemptsTodayLoading;
 
   const stats = [
     { title: "Total Courses", value: courses?.length ?? '...', icon: BookOpen },
-    { title: "Est. Attempts Today", value: attemptsToday, icon: CheckCircle },
-    { title: "Est. Pass Rate", value: `${passRate.toFixed(1)}%`, icon: Percent },
+    { title: "Attempts Today", value: attemptsTodayCount, icon: Activity },
+    { title: "Pass Rate Today", value: `${passRateToday.toFixed(1)}%`, icon: Percent },
   ];
 
   const getAvatarForUser = (user: UserProfile, index: number) => {
@@ -147,7 +164,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><UsersIcon className="h-5 w-5" />Daily Activity (Sample)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Daily Activity (Sample)</CardTitle>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[250px] w-full">
