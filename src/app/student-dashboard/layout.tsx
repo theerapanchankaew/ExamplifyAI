@@ -1,4 +1,6 @@
 
+'use client';
+
 import type { ReactNode } from "react"
 import {
   Sidebar,
@@ -10,30 +12,10 @@ import {
 } from "@/components/ui/sidebar"
 import { UserNav } from "@/components/user-nav"
 import { StudentNav } from "@/components/student-nav"
-import { BookA, ShoppingCart } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { CartProvider, useCart } from "@/context/cart-context"
-import { Badge } from "@/components/ui/badge"
+import { BookA } from "lucide-react"
+import { CartProvider } from "@/context/cart-context"
+import { CartButton } from "@/components/cart-button";
 
-
-function CartButton() {
-    'use client';
-    const { cartCount } = useCart();
-    return (
-        <Button variant="ghost" size="icon" className="relative">
-            <ShoppingCart className="h-5 w-5" />
-            <span className="sr-only">Shopping Cart</span>
-            {cartCount > 0 && (
-                <Badge 
-                    variant="destructive" 
-                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0"
-                >
-                    {cartCount}
-                </Badge>
-            )}
-        </Button>
-    )
-}
 
 export default function StudentDashboardLayout({ children }: { children: ReactNode }) {
   return (
