@@ -6,7 +6,7 @@ import { useFirestore } from '@/firebase';
 import { useCollection } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import { collection, addDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from "@/hooks/use-toast";
@@ -53,11 +53,6 @@ export default function RoadmapCreatorPage() {
       steps: [],
     },
   });
-  
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "steps"
-  });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!firestore) return;
@@ -67,6 +62,8 @@ export default function RoadmapCreatorPage() {
       const roadmapCollectionRef = collection(firestore, "roadmaps");
       const newRoadmapRef = doc(roadmapCollectionRef);
 
+      // Using a batch for a single operation is fine, but not strictly necessary.
+      // It's good practice if you plan to add more operations to the transaction.
       const batch = writeBatch(firestore);
       batch.set(newRoadmapRef, {
         id: newRoadmapRef.id,
@@ -117,14 +114,13 @@ export default function RoadmapCreatorPage() {
       setRoadmapToDelete(null);
     }
   };
-
-  const isLoading = coursesLoading || roadmapsLoading;
   
   const coursesById = useMemo(() => {
     if (!courses) return new Map<string, Course>();
     return new Map(courses.map(course => [course.id, course]));
   }, [courses]);
 
+  const isLoading = coursesLoading || roadmapsLoading;
 
   return (
     <div className="grid gap-8 lg:grid-cols-5">
@@ -135,7 +131,7 @@ export default function RoadmapCreatorPage() {
             <CardDescription>Build a structured learning path by sequencing multiple courses.</CardDescription>
           </CardHeader>
           <CardContent>
-            {coursesLoading ? (
+            {isLoading ? (
                <div className="flex h-64 items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                </div>
@@ -155,11 +151,15 @@ export default function RoadmapCreatorPage() {
                     </FormItem>
                   )}
                 />
-                <FormItem>
-                    <FormLabel>Select Courses</FormLabel>
-                    <div className="space-y-3 rounded-md border p-4 max-h-96 overflow-y-auto">
+                <FormField
+                  control={form.control}
+                  name="steps"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel>Select Courses</FormLabel>
+                      <div className="space-y-3 rounded-md border p-4 max-h-96 overflow-y-auto">
                         {courses?.map((course) => (
-                           <FormField
+                          <FormField
                             key={course.id}
                             control={form.control}
                             name="steps"
@@ -173,13 +173,14 @@ export default function RoadmapCreatorPage() {
                                     <Checkbox
                                       checked={field.value?.includes(course.id)}
                                       onCheckedChange={(checked) => {
+                                        const currentValues = field.value || [];
                                         return checked
-                                          ? field.onChange([...field.value, course.id])
+                                          ? field.onChange([...currentValues, course.id])
                                           : field.onChange(
-                                              field.value?.filter(
+                                              currentValues.filter(
                                                 (value) => value !== course.id
                                               )
-                                            )
+                                            );
                                       }}
                                     />
                                   </FormControl>
@@ -190,13 +191,15 @@ export default function RoadmapCreatorPage() {
                                     </div>
                                   </FormLabel>
                                 </FormItem>
-                              )
+                              );
                             }}
                           />
                         ))}
-                    </div>
-                    <FormMessage />
-                </FormItem>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <Button type="submit" className="w-full" disabled={isSaving}>
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
@@ -216,7 +219,7 @@ export default function RoadmapCreatorPage() {
             <CardDescription>A list of all learning paths currently in the system.</CardDescription>
           </CardHeader>
           <CardContent>
-             {roadmapsLoading ? (
+             {isLoading ? (
                <div className="flex h-64 items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                </div>
@@ -237,9 +240,12 @@ export default function RoadmapCreatorPage() {
                         <TableCell className="font-medium">{roadmap.title}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {roadmap.steps.map(stepId => (
-                               <Badge key={stepId} variant="secondary">{coursesById.get(stepId)?.courseCode || 'N/A'}</Badge>
-                            ))}
+                            {roadmap.steps.map(stepId => {
+                              const course = coursesById.get(stepId);
+                              return (
+                               <Badge key={stepId} variant="secondary">{course?.courseCode || 'N/A'}</Badge>
+                              )
+                            })}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -248,8 +254,10 @@ export default function RoadmapCreatorPage() {
                             size="icon" 
                             onClick={() => handleDeleteClick(roadmap)}
                             className="text-destructive hover:text-destructive"
+                            disabled={isDeleting}
                            >
                             <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Delete Roadmap</span>
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -268,6 +276,7 @@ export default function RoadmapCreatorPage() {
           </CardContent>
         </Card>
       </div>
+
        <AlertDialog open={!!roadmapToDelete} onOpenChange={(open) => !open && setRoadmapToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -289,3 +298,5 @@ export default function RoadmapCreatorPage() {
     </div>
   );
 }
+
+    
