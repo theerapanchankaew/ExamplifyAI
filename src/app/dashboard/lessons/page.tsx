@@ -29,6 +29,12 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -40,14 +46,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, MoreHorizontal } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Loader2, BookCopy, Edit, Trash2, Book } from 'lucide-react';
 
 type EnrichedLesson = Lesson & {
   courseTitle?: string;
@@ -55,6 +54,13 @@ type EnrichedLesson = Lesson & {
   courseCompetency?: string;
   courseCode?: string;
 };
+
+type GroupedCourses = {
+    [courseId: string]: {
+        course: Course;
+        lessons: EnrichedLesson[];
+    }
+}
 
 export default function LessonsPage() {
   const firestore = useFirestore();
@@ -75,16 +81,31 @@ export default function LessonsPage() {
   }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
-  const enrichedLessons = useMemo<EnrichedLesson[]>(() => {
-    if (!lessons || !courses) return [];
+  const groupedCourses = useMemo<GroupedCourses>(() => {
+    if (!lessons || !courses) return {};
+
     const coursesMap = new Map(courses.map(c => [c.id, c]));
-    return lessons.map(lesson => ({
-      ...lesson,
-      courseTitle: coursesMap.get(lesson.courseId)?.title || 'Unknown Course',
-      courseDifficulty: coursesMap.get(lesson.courseId)?.difficulty,
-      courseCompetency: coursesMap.get(lesson.courseId)?.competency,
-      courseCode: coursesMap.get(lesson.courseId)?.courseCode,
-    }));
+    const result: GroupedCourses = {};
+
+    lessons.forEach(lesson => {
+        const course = coursesMap.get(lesson.courseId);
+        if (course) {
+            if (!result[lesson.courseId]) {
+                result[lesson.courseId] = {
+                    course: course,
+                    lessons: []
+                };
+            }
+            result[lesson.courseId].lessons.push({
+                ...lesson,
+                courseTitle: course.title,
+                courseDifficulty: course.difficulty,
+                courseCompetency: course.competency,
+                courseCode: course.courseCode,
+            });
+        }
+    });
+    return result;
   }, [lessons, courses]);
 
   const isLoading = lessonsLoading || coursesLoading;
@@ -126,7 +147,7 @@ export default function LessonsPage() {
         <CardHeader>
           <CardTitle>Lessons Management</CardTitle>
           <CardDescription>
-            Manage all individual lessons across all courses in the system.
+            Manage all lessons, grouped by course. Each lesson acts as a micro-learning module.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -134,56 +155,61 @@ export default function LessonsPage() {
             <div className="flex h-64 items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          ) : Object.keys(groupedCourses).length > 0 ? (
+            <Accordion type="multiple" className="w-full space-y-4">
+                {Object.values(groupedCourses).map(({ course, lessons }) => (
+                    <AccordionItem value={course.id} key={course.id} className="border-b-0 rounded-lg border bg-card text-card-foreground shadow-sm">
+                        <AccordionTrigger className="p-6 hover:no-underline">
+                           <div className='flex flex-col text-left'>
+                                <div className='flex items-center gap-4'>
+                                    <h3 className="text-lg font-semibold">{course.title}</h3>
+                                    <Badge variant="outline">{course.courseCode}</Badge>
+                                </div>
+                                <p className='text-sm text-muted-foreground mt-1'>{lessons.length} {lessons.length === 1 ? 'module' : 'modules'}</p>
+                           </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                           <div className="overflow-x-auto border-t">
+                             <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Module Title</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {lessons.map((lesson) => (
+                                        <TableRow key={lesson.id}>
+                                            <TableCell className="font-medium flex items-center gap-2">
+                                                <Book className="h-4 w-4 text-muted-foreground"/>
+                                                {lesson.title}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" onClick={() => handleEditClick(lesson.id)}>
+                                                    <Edit className="h-4 w-4" />
+                                                    <span className="sr-only">Edit</span>
+                                                </Button>
+                                                 <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(lesson)} className="text-destructive hover:text-destructive">
+                                                    <Trash2 className="h-4 w-4" />
+                                                    <span className="sr-only">Delete</span>
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                             </Table>
+                           </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
           ) : (
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Lesson Title</TableHead>
-                    <TableHead>Course</TableHead>
-                    <TableHead>Competency</TableHead>
-                    <TableHead>Course Code</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {enrichedLessons && enrichedLessons.length > 0 ? (
-                    enrichedLessons.map((lesson) => (
-                      <TableRow key={lesson.id}>
-                        <TableCell className="font-medium">{lesson.title}</TableCell>
-                        <TableCell>{lesson.courseTitle}</TableCell>
-                        <TableCell>
-                          {lesson.courseCompetency && <Badge variant="outline">{lesson.courseCompetency}</Badge>}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {lesson.courseCode || 'N/A'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button aria-haspopup="true" size="icon" variant="ghost">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Toggle menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditClick(lesson.id)}>Edit</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDeleteClick(lesson)} className="text-destructive focus:text-destructive">Delete</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        No lessons found.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+            <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed">
+                <div className="text-center text-muted-foreground">
+                    <BookCopy className="mx-auto h-12 w-12" />
+                    <h3 className="mt-4 text-lg font-semibold">No Lessons Found</h3>
+                    <p className="mt-1 max-w-sm mx-auto text-sm">Create courses and lessons via the 'Add Course' page to see them here.</p>
+                </div>
             </div>
           )}
         </CardContent>
@@ -194,8 +220,9 @@ export default function LessonsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the lesson
-              <span className="font-bold"> "{lessonToDelete?.title}"</span>.
+              This action cannot be undone. This will permanently delete the module
+              <span className="font-bold"> "{lessonToDelete?.title}"</span> from the course
+              <span className="font-bold"> "{lessonToDelete?.courseTitle}"</span>.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
