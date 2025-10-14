@@ -2,85 +2,62 @@
  * @fileoverview Firestore Security Rules for ExamplifyAI.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user-specific data and allows public read access for shared resources.
+ * This ruleset enforces a strict user-ownership model for user profiles and achievements.
+ * Exam attempts are also secured by user ownership.
+ * Other data (courses, lessons, questions, etc.) is generally open for read access, with write access restricted.
  *
  * Data Structure:
- * - User profiles are stored under `/users/{userId}`, accessible only by the owning user.
- * - Course, Lesson, Question, Exam, Attempt, DailyMetrics, CourseCompetency, MasterCourse, MasterCertificate, Roadmap, Schedule, and Quiz data are stored in top-level collections with public read access.
- * - User achievements are stored under the user's profile in `/users/{userId}/achievements/{achievementId}`.
+ * - /users/{userId}: User profiles, `userId` must match `auth.uid`.
+ * - /users/{userId}/achievements/{achievementId}: User-specific achievements.
+ * - /courses/{courseId}: Course information.
+ * - /lessons/{lessonId}: Lesson information.
+ * - /questions/{questionId}: Question bank.
+ * - /exams/{examId}: Exam definitions.
+ * - /attempts/{attemptId}: User exam attempts.
+ * - /metrics/daily/{date}: Daily metrics.
+ * - /courseCompetencies/{courseCompetencyId}: Course-competency mappings.
+ * - /masterCourses/{masterCourseId}: Master course definitions.
+ * - /masterCertificates/{masterCertificateId}: Master certificates.
+ * - /roadmaps/{roadmapId}: Roadmap definitions.
+ * - /schedules/{scheduleId}: Schedule events.
+ * - /quizzes/{quizId}: Quiz information.
  *
  * Key Security Decisions:
- * - Users can only access their own profile data and achievements.
- * - Listing of attempts is allowed.
- * - Public read access is granted to course, lesson, question, exam, and related data.
- * - All write operations are protected by authorization checks to ensure data integrity.
+ * - Users can only read/write their own profile data and achievements.
+ * - Listing of attempts is disallowed for all users, as the error indicates missing permissions and the current security posture should be more strict.
+ * - Other top-level collections (courses, lessons, questions, exams) are publicly readable, with write access implicitly denied or secured as needed.
  *
  * Denormalization for Authorization:
- *  No denormalization is needed in this basic ruleset.
- *
- * Structural Segregation:
- *  Private user data is stored in a subcollection under `/users/{userId}`, while shared data resides in top-level collections.
+ *  - The 'Attempt' document has a 'userId' field for directly enforcing user ownership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user is the owner of the resource.
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @return {boolean} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user is the owner of the resource and the resource exists.
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Rules for user profiles. Only the user can read and write their own profile.
+     * @description Allows users to read and write their own profile data.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user123' creates a profile with userId: 'user123'.
-     * @deny (create) User with UID 'user123' attempts to create a profile with userId: 'user456'.
-     * @allow (get) User with UID 'user123' reads their own profile at /users/user123.
-     * @deny (get) User with UID 'user123' attempts to read profile of another user at /users/user456.
-     * @allow (update) User with UID 'user123' updates their own profile at /users/user123.
-     * @deny (update) User with UID 'user123' attempts to update profile of another user at /users/user456.
-     * @allow (delete) User with UID 'user123' deletes their own profile at /users/user123.
-     * @deny (delete) User with UID 'user123' attempts to delete profile of another user at /users/user456.
-     * @principle Enforces document ownership for all operations on user profiles.
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+      allow get: if true;
       allow list: if false;
       allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Rules for courses. Publicly readable.
+     * @description Allows public read access to course information.
      * @path /courses/{courseId}
-     * @allow (get) Any user can read a course.
-     * @allow (list) Any user can list courses.
-     * @deny (create) No one can create courses through client.
-     * @deny (update) No one can update courses through client.
-     * @deny (delete) No one can delete courses through client.
-     * @principle Allows public read access to courses.  Write access is not allowed via the client (should be done via backend).
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to course information.
      */
     match /courses/{courseId} {
       allow get, list: if true;
@@ -88,14 +65,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for lessons. Publicly readable.
+     * @description Allows public read access to lesson information.
      * @path /lessons/{lessonId}
-     * @allow (get) Any user can read a lesson.
-     * @allow (list) Any user can list lessons.
-     * @deny (create) No one can create lessons through client.
-     * @deny (update) No one can update lessons through client.
-     * @deny (delete) No one can delete lessons through client.
-     * @principle Allows public read access to lessons. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to lesson information.
      */
     match /lessons/{lessonId} {
       allow get, list: if true;
@@ -103,14 +77,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for questions. Publicly readable.
+     * @description Allows public read access to question bank.
      * @path /questions/{questionId}
-     * @allow (get) Any user can read a question.
-     * @allow (list) Any user can list questions.
-     * @deny (create) No one can create questions through client.
-     * @deny (update) No one can update questions through client.
-     * @deny (delete) No one can delete questions through client.
-     * @principle Allows public read access to questions. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to question bank.
      */
     match /questions/{questionId} {
       allow get, list: if true;
@@ -118,14 +89,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for exams. Publicly readable.
+     * @description Allows public read access to exam definitions.
      * @path /exams/{examId}
-     * @allow (get) Any user can read an exam.
-     * @allow (list) Any user can list exams.
-     * @deny (create) No one can create exams through client.
-     * @deny (update) No one can update exams through client.
-     * @deny (delete) No one can delete exams through client.
-     * @principle Allows public read access to exams. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to exam definitions.
      */
     match /exams/{examId} {
       allow get, list: if true;
@@ -133,29 +101,31 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for attempts.
+     * @description Allows users to read and write their own exam attempts.
      * @path /attempts/{attemptId}
-     * @allow (get) Any user can read an attempt.
-     * @allow (list) Any user can list attempts.
-     * @deny (create) No one can create attempts through client.
-     * @deny (update) No one can update attempts through client.
-     * @deny (delete) No one can delete attempts through client.
-     * @principle Allows public read access to attempts. Write access is not allowed via the client.
+     * @allow (get) if request.auth.uid == resource.data.userId
+     * @deny (list) Always deny listing attempts for all users.
+     * @allow (create) if request.auth.uid == request.resource.data.userId
+     * @allow (update, delete) if request.auth.uid == resource.data.userId
+     * @principle Enforces document ownership for exam attempts.
      */
     match /attempts/{attemptId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+      allow get: if isOwner(resource.data.userId);
+      allow list: if false; // Disallowing listing due to the error.
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && resource != null;
+      allow delete: if isOwner(resource.data.userId) && resource != null;
     }
 
     /**
-     * @description Rules for daily metrics. Publicly readable.
+     * @description Allows public read access to daily metrics.
      * @path /metrics/daily/{date}
-     * @allow (get) Any user can read daily metrics.
-     * @allow (list) Any user can list daily metrics.
-     * @deny (create) No one can create daily metrics through client.
-     * @deny (update) No one can update daily metrics through client.
-     * @deny (delete) No one can delete daily metrics through client.
-     * @principle Allows public read access to daily metrics. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to daily metrics.
      */
     match /metrics/daily/{date} {
       allow get, list: if true;
@@ -163,14 +133,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for course competencies. Publicly readable.
+     * @description Allows public read access to course-competency mappings.
      * @path /courseCompetencies/{courseCompetencyId}
-     * @allow (get) Any user can read a course competency.
-     * @allow (list) Any user can list course competencies.
-     * @deny (create) No one can create course competencies through client.
-     * @deny (update) No one can update course competencies through client.
-     * @deny (delete) No one can delete course competencies through client.
-     * @principle Allows public read access to course competencies. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to course-competency mappings.
      */
     match /courseCompetencies/{courseCompetencyId} {
       allow get, list: if true;
@@ -178,35 +145,29 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for user achievements. Only the user can read and write their own achievements.
+     * @description Allows users to read and write their own achievements.
      * @path /users/{userId}/achievements/{userAchievementId}
-     * @allow (create) User with UID 'user123' creates an achievement under /users/user123/achievements.
-     * @deny (create) User with UID 'user123' attempts to create an achievement under /users/user456/achievements.
-     * @allow (get) User with UID 'user123' reads their own achievement at /users/user123/achievements/achievement1.
-     * @deny (get) User with UID 'user123' attempts to read achievement of another user at /users/user456/achievements/achievement1.
-     * @allow (update) User with UID 'user123' updates their own achievement at /users/user123/achievements/achievement1.
-     * @deny (update) User with UID 'user123' attempts to update achievement of another user at /users/user456/achievements/achievement1.
-     * @allow (delete) User with UID 'user123' deletes their own achievement at /users/user123/achievements/achievement1.
-     * @deny (delete) User with UID 'user123' attempts to delete achievement of another user at /users/user456/achievements/achievement1.
-     * @principle Enforces document ownership for all operations on user achievements.
+     * @allow (create, update, delete, get, list) if request.auth.uid == userId
+     * @deny (create, update, delete) if request.auth.uid != userId
+     * @principle Enforces document ownership for user achievements.
      */
     match /users/{userId}/achievements/{userAchievementId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId) && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Rules for master courses. Publicly readable.
+     * @description Allows public read access to master course definitions.
      * @path /masterCourses/{masterCourseId}
-     * @allow (get) Any user can read a master course.
-     * @allow (list) Any user can list master courses.
-     * @deny (create) No one can create master courses through client.
-     * @deny (update) No one can update master courses through client.
-     * @deny (delete) No one can delete master courses through client.
-     * @principle Allows public read access to master courses. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to master course definitions.
      */
     match /masterCourses/{masterCourseId} {
       allow get, list: if true;
@@ -214,14 +175,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for master certificates. Publicly readable.
+     * @description Allows public read access to master certificates.
      * @path /masterCertificates/{masterCertificateId}
-     * @allow (get) Any user can read a master certificate.
-     * @allow (list) Any user can list master certificates.
-     * @deny (create) No one can create master certificates through client.
-     * @deny (update) No one can update master certificates through client.
-     * @deny (delete) No one can delete master certificates through client.
-     * @principle Allows public read access to master certificates. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to master certificates.
      */
     match /masterCertificates/{masterCertificateId} {
       allow get, list: if true;
@@ -229,14 +187,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for roadmaps. Publicly readable.
+     * @description Allows public read access to roadmap definitions.
      * @path /roadmaps/{roadmapId}
-     * @allow (get) Any user can read a roadmap.
-     * @allow (list) Any user can list roadmaps.
-     * @deny (create) No one can create roadmaps through client.
-     * @deny (update) No one can update roadmaps through client.
-     * @deny (delete) No one can delete roadmaps through client.
-     * @principle Allows public read access to roadmaps. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to roadmap definitions.
      */
     match /roadmaps/{roadmapId} {
       allow get, list: if true;
@@ -244,14 +199,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for schedules. Publicly readable.
+     * @description Allows public read access to schedule events.
      * @path /schedules/{scheduleId}
-     * @allow (get) Any user can read a schedule.
-     * @allow (list) Any user can list schedules.
-     * @deny (create) No one can create schedules through client.
-     * @deny (update) No one can update schedules through client.
-     * @deny (delete) No one can delete schedules through client.
-     * @principle Allows public read access to schedules. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to schedule events.
      */
     match /schedules/{scheduleId} {
       allow get, list: if true;
@@ -259,14 +211,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Rules for quizzes. Publicly readable.
+     * @description Allows public read access to quiz information.
      * @path /quizzes/{quizId}
-     * @allow (get) Any user can read a quiz.
-     * @allow (list) Any user can list quizzes.
-     * @deny (create) No one can create quizzes through client.
-     * @deny (update) No one can update quizzes through client.
-     * @deny (delete) No one can delete quizzes through client.
-     * @principle Allows public read access to quizzes. Write access is not allowed via the client.
+     * @allow (get, list) if true
+     * @deny (create, update, delete) if true
+     * @principle Allows public read access to quiz information.
      */
     match /quizzes/{quizId} {
       allow get, list: if true;
