@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import { useFirestore } from '@/firebase';
 import { useCollection } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
-import { collection, addDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -64,10 +64,18 @@ export default function RoadmapCreatorPage() {
     setIsSaving(true);
     
     try {
-      await addDoc(collection(firestore, 'roadmaps'), {
+      const roadmapCollectionRef = collection(firestore, "roadmaps");
+      const newRoadmapRef = doc(roadmapCollectionRef);
+
+      const batch = writeBatch(firestore);
+      batch.set(newRoadmapRef, {
+        id: newRoadmapRef.id,
         title: values.title,
         steps: values.steps,
       });
+
+      await batch.commit();
+
       toast({
         title: 'Roadmap Created',
         description: `"${values.title}" has been saved successfully.`,
@@ -111,6 +119,12 @@ export default function RoadmapCreatorPage() {
   };
 
   const isLoading = coursesLoading || roadmapsLoading;
+  
+  const coursesById = useMemo(() => {
+    if (!courses) return new Map<string, Course>();
+    return new Map(courses.map(course => [course.id, course]));
+  }, [courses]);
+
 
   return (
     <div className="grid gap-8 lg:grid-cols-5">
@@ -212,7 +226,7 @@ export default function RoadmapCreatorPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Roadmap Title</TableHead>
-                    <TableHead className="text-center">Courses</TableHead>
+                    <TableHead>Courses</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -221,7 +235,13 @@ export default function RoadmapCreatorPage() {
                     roadmaps.map((roadmap) => (
                       <TableRow key={roadmap.id}>
                         <TableCell className="font-medium">{roadmap.title}</TableCell>
-                        <TableCell className="text-center font-mono">{roadmap.steps.length}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {roadmap.steps.map(stepId => (
+                               <Badge key={stepId} variant="secondary">{coursesById.get(stepId)?.courseCode || 'N/A'}</Badge>
+                            ))}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button 
                             variant="ghost" 
