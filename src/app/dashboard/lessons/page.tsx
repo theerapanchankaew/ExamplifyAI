@@ -46,7 +46,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, BookCopy, Edit, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, BookCopy, Edit, Trash2, Search } from 'lucide-react';
 
 type GroupedLessons = {
   [courseId: string]: {
@@ -62,6 +63,7 @@ export default function LessonsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [lessonToDelete, setLessonToDelete] = useState<Lesson & { courseTitle?: string } | null>(null);
   const [courseToBulkDelete, setCourseToBulkDelete] = useState<Course & { lessonCount: number } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const lessonsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -77,6 +79,8 @@ export default function LessonsPage() {
   
   const groupedLessons = useMemo<GroupedLessons>(() => {
     if (!lessons || !courses) return {};
+
+    const lowercasedSearchTerm = searchTerm.toLowerCase();
 
     const coursesMap = new Map(courses.map(c => [c.id, c]));
     const groups: GroupedLessons = {};
@@ -94,15 +98,23 @@ export default function LessonsPage() {
       }
     });
 
-    // Filter out courses with no lessons
+    // Filter out courses with no lessons or that don't match the search term
     return Object.keys(groups).reduce((acc, courseId) => {
-        if (groups[courseId].lessons.length > 0) {
-            acc[courseId] = groups[courseId];
-        }
-        return acc;
+      const group = groups[courseId];
+      const courseTitleMatch = group.courseDetails.title.toLowerCase().includes(lowercasedSearchTerm);
+      const matchingLessons = group.lessons.filter(lesson => lesson.title.toLowerCase().includes(lowercasedSearchTerm));
+
+      if (group.lessons.length > 0 && (courseTitleMatch || matchingLessons.length > 0)) {
+        acc[courseId] = {
+          ...group,
+          // If the course title matches, show all its lessons, otherwise show only matching lessons
+          lessons: courseTitleMatch ? group.lessons : matchingLessons,
+        };
+      }
+      return acc;
     }, {} as GroupedLessons);
 
-  }, [lessons, courses]);
+  }, [lessons, courses, searchTerm]);
 
   const isLoading = lessonsLoading || coursesLoading;
 
@@ -176,10 +188,23 @@ export default function LessonsPage() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Lessons Management</CardTitle>
-          <CardDescription>
-            Manage all lessons, grouped by course. Each lesson acts as a micro-learning module.
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <CardTitle>Lessons Management</CardTitle>
+              <CardDescription>
+                Manage all lessons, grouped by course.
+              </CardDescription>
+            </div>
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    placeholder="Search courses or lessons..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 w-full sm:w-64"
+                />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -205,8 +230,9 @@ export default function LessonsPage() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Lesson Title</TableHead>
-                              <TableHead className="w-[250px] text-right">
+                              <TableHead className="w-[40%]">Lesson Title</TableHead>
+                              <TableHead className="w-[30%]">Lesson ID</TableHead>
+                              <TableHead className="w-[30%] text-right">
                                 <Button
                                   variant="destructive"
                                   size="sm"
@@ -214,7 +240,7 @@ export default function LessonsPage() {
                                   disabled={isDeleting}
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete All Lessons
+                                  Delete All
                                 </Button>
                               </TableHead>
                             </TableRow>
@@ -223,6 +249,7 @@ export default function LessonsPage() {
                             {lessons.map((lesson) => (
                               <TableRow key={lesson.id}>
                                 <TableCell className="font-medium">{lesson.title}</TableCell>
+                                <TableCell className="font-mono text-xs text-muted-foreground">{lesson.id}</TableCell>
                                 <TableCell className="text-right">
                                   <Button 
                                     variant="ghost" 
@@ -255,8 +282,15 @@ export default function LessonsPage() {
             <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed">
                 <div className="text-center text-muted-foreground">
                     <BookCopy className="mx-auto h-12 w-12" />
-                    <h3 className="mt-4 text-lg font-semibold">No Lessons Found</h3>
-                    <p className="mt-1 max-w-sm mx-auto text-sm">Create courses and lessons via the 'Add Course' page to see them here.</p>
+                    <h3 className="mt-4 text-lg font-semibold">
+                      {searchTerm ? 'No Matching Lessons Found' : 'No Lessons Found'}
+                    </h3>
+                    <p className="mt-1 max-w-sm mx-auto text-sm">
+                      {searchTerm 
+                        ? 'Try a different search term or create a new course.'
+                        : "Create courses via the 'Add Course' page to see them here."
+                      }
+                    </p>
                 </div>
             </div>
           )}
