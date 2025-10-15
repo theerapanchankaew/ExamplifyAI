@@ -29,6 +29,12 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -42,10 +48,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, BookCopy, Edit, Trash2 } from 'lucide-react';
 
-type EnrichedLesson = Lesson & {
-  courseTitle?: string;
-  courseDifficulty?: string;
-  courseCompetency?: string;
+type GroupedLessons = {
+  [courseId: string]: {
+    courseDetails: Course;
+    lessons: Lesson[];
+  };
 };
 
 export default function LessonsPage() {
@@ -53,7 +60,7 @@ export default function LessonsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
-  const [lessonToDelete, setLessonToDelete] = useState<EnrichedLesson | null>(null);
+  const [lessonToDelete, setLessonToDelete] = useState<Lesson & { courseTitle?: string } | null>(null);
 
   const lessonsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -67,26 +74,39 @@ export default function LessonsPage() {
   }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
   
-  const enrichedLessons = useMemo<EnrichedLesson[]>(() => {
-    if (!lessons || !courses) return [];
+  const groupedLessons = useMemo<GroupedLessons>(() => {
+    if (!lessons || !courses) return {};
 
     const coursesMap = new Map(courses.map(c => [c.id, c]));
-    
-    return lessons.map(lesson => {
-      const course = coursesMap.get(lesson.courseId);
-      return {
-        ...lesson,
-        courseTitle: course?.title || 'N/A',
-        courseDifficulty: course?.difficulty,
-        courseCompetency: course?.competency,
+    const groups: GroupedLessons = {};
+
+    courses.forEach(course => {
+      groups[course.id] = {
+        courseDetails: course,
+        lessons: []
       };
-    }).sort((a, b) => (a.courseTitle || '').localeCompare(b.courseTitle || ''));
+    });
+
+    lessons.forEach(lesson => {
+      if (groups[lesson.courseId]) {
+        groups[lesson.courseId].lessons.push(lesson);
+      }
+    });
+
+    // Filter out courses with no lessons
+    return Object.keys(groups).reduce((acc, courseId) => {
+        if (groups[courseId].lessons.length > 0) {
+            acc[courseId] = groups[courseId];
+        }
+        return acc;
+    }, {} as GroupedLessons);
+
   }, [lessons, courses]);
 
   const isLoading = lessonsLoading || coursesLoading;
 
-  const handleDeleteClick = (lesson: EnrichedLesson) => {
-    setLessonToDelete(lesson);
+  const handleDeleteClick = (lesson: Lesson, course: Course) => {
+    setLessonToDelete({ ...lesson, courseTitle: course.title });
   };
 
   const confirmDelete = async () => {
@@ -122,7 +142,7 @@ export default function LessonsPage() {
         <CardHeader>
           <CardTitle>Lessons Management</CardTitle>
           <CardDescription>
-            Manage all lessons in the system. Each lesson acts as a micro-learning module.
+            Manage all lessons, grouped by course. Each lesson acts as a micro-learning module.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -130,55 +150,61 @@ export default function LessonsPage() {
             <div className="flex h-64 items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : enrichedLessons.length > 0 ? (
-             <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[120px]">Lesson ID</TableHead>
-                    <TableHead>Lesson Title</TableHead>
-                    <TableHead>Course Title</TableHead>
-                    <TableHead>Competency</TableHead>
-                    <TableHead>Difficulty</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {enrichedLessons.map((lesson) => (
-                    <TableRow key={lesson.id}>
-                      <TableCell className="font-mono text-xs truncate">{lesson.id}</TableCell>
-                      <TableCell className="font-medium">{lesson.title}</TableCell>
-                      <TableCell className="text-muted-foreground">{lesson.courseTitle}</TableCell>
-                      <TableCell>
-                        {lesson.courseCompetency && <Badge variant="outline">{lesson.courseCompetency}</Badge>}
-                      </TableCell>
-                       <TableCell>
-                        {lesson.courseDifficulty && <Badge variant="secondary">{lesson.courseDifficulty}</Badge>}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleEditClick(lesson.id)}
-                         >
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">Edit Lesson</span>
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleDeleteClick(lesson)}
-                          className="text-destructive hover:text-destructive"
-                         >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete Lesson</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+          ) : Object.keys(groupedLessons).length > 0 ? (
+             <Accordion type="single" collapsible className="w-full">
+                {Object.values(groupedLessons).map(({ courseDetails, lessons }) => (
+                  <AccordionItem value={courseDetails.id} key={courseDetails.id}>
+                    <AccordionTrigger>
+                      <div className="flex flex-col md:flex-row md:items-center justify-between w-full pr-4">
+                        <span className="text-lg font-semibold">{courseDetails.title}</span>
+                        <div className="flex items-center gap-2 mt-2 md:mt-0 text-sm">
+                           {courseDetails.courseCode && <Badge variant="outline" className="font-mono">{courseDetails.courseCode}</Badge>}
+                           {courseDetails.competency && <Badge variant="secondary">{courseDetails.competency}</Badge>}
+                           {courseDetails.difficulty && <Badge variant="secondary">{courseDetails.difficulty}</Badge>}
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                       <div className="overflow-x-auto rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Lesson Title</TableHead>
+                              <TableHead className="w-[120px] text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {lessons.map((lesson) => (
+                              <TableRow key={lesson.id}>
+                                <TableCell className="font-medium">{lesson.title}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleEditClick(lesson.id)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    <span className="sr-only">Edit Lesson</span>
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleDeleteClick(lesson, courseDetails)}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Delete Lesson</span>
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+             </Accordion>
           ) : (
             <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed">
                 <div className="text-center text-muted-foreground">
