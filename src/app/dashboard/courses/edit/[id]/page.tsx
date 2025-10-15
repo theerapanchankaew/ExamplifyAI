@@ -62,7 +62,7 @@ export default function EditCoursePage() {
         description: course.description || '',
         courseCode: course.courseCode || '',
         competency: course.competency,
-        difficulty: course.difficulty,
+        difficulty: course.difficulty || 'Beginner',
       });
     }
   }, [course, form]);
@@ -181,7 +181,7 @@ export default function EditCoursePage() {
                 render={({ field }) => (
                     <FormItem>
                     <FormLabel>Difficulty</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger></FormControl>
                         <SelectContent>
                         <SelectItem value="Beginner">Beginner</SelectItem>
