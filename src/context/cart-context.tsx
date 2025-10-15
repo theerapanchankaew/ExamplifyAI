@@ -43,35 +43,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
 
   const addToCart = (item: CartItem) => {
-    setCartItems(prevItems => {
-      if (prevItems.find(cartItem => cartItem.id === item.id)) {
-        toast({
-            variant: "default",
-            title: "Already in Cart",
-            description: `"${item.title}" is already in your cart.`,
-        });
-        return prevItems;
-      }
+    if (cartItems.find(cartItem => cartItem.id === item.id)) {
+      toast({
+          variant: "default",
+          title: "Already in Cart",
+          description: `"${item.title}" is already in your cart.`,
+      });
+    } else {
+      setCartItems(prevItems => [...prevItems, item]);
       toast({
         title: "Added to Cart",
         description: `"${item.title}" has been added to your cart.`,
       });
-      return [...prevItems, item];
-    });
+    }
   };
 
   const removeFromCart = (itemId: string) => {
-    setCartItems(prevItems => {
-        const itemToRemove = prevItems.find(item => item.id === itemId);
-        if (itemToRemove) {
-            toast({
-                variant: 'destructive',
-                title: 'Removed from Cart',
-                description: `"${itemToRemove.title}" has been removed.`,
-            })
-        }
-        return prevItems.filter(item => item.id !== itemId)
-    });
+    const itemToRemove = cartItems.find(item => item.id === itemId);
+    if (itemToRemove) {
+        toast({
+            variant: 'destructive',
+            title: 'Removed from Cart',
+            description: `"${itemToRemove.title}" has been removed.`,
+        })
+    }
+    setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
   };
 
   const total = useMemo(() => {
