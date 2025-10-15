@@ -1,10 +1,8 @@
 // src/ai/flows/generate-course-from-topic.ts
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for generating a course from a topic and syllabus using AI.
- *
- * The flow takes a topic, syllabus, difficulty level, number of MCQ questions, number of essay questions, and creativity level as input.
- * It then uses an AI model to generate course content, including lessons and questions.
+ * @fileOverview This file defines a Genkit flow for generating a course from a topic and syllabus using AI,
+ * following a nested structure of Lessons, Modules, and Chapters.
  *
  * @fileOverview
  * - `generateCourseFromTopic`: A function to generate a course from a topic and syllabus using AI.
@@ -25,12 +23,12 @@ const GenerateCourseFromTopicInputSchema = z.object({
     .number()
     .int()
     .min(0)
-    .describe('The number of multiple-choice questions to generate.'),
+    .describe('The number of multiple-choice questions to generate for the final exam.'),
   essayCount: z
     .number()
     .int()
     .min(0)
-    .describe('The number of essay questions to generate.'),
+    .describe('The number of essay questions to generate for the final exam.'),
   creativity: z
     .number()
     .min(0)
@@ -42,22 +40,32 @@ export type GenerateCourseFromTopicInput = z.infer<
   typeof GenerateCourseFromTopicInputSchema
 >;
 
+const QuizSchema = z.object({
+  stem: z.string().describe('The question stem.'),
+  options: z.array(z.string()).describe('The question options.'),
+  answer: z.string().describe('The correct answer.'),
+});
+
+const ChapterSchema = z.object({
+  title: z.string().describe('The title of the chapter.'),
+  content: z.string().describe('The learning content of the chapter.'),
+  quiz: z.array(QuizSchema).optional().describe('An optional short quiz for the chapter.'),
+});
+
+const ModuleSchema = z.object({
+  title: z.string().describe('The title of the module.'),
+  chapters: z.array(ChapterSchema).describe('The chapters within the module.'),
+});
+
+const LessonSchema = z.object({
+  title: z.string().describe('The title of the lesson.'),
+  modules: z.array(ModuleSchema).describe('The modules within the lesson.'),
+});
+
 const GenerateCourseFromTopicOutputSchema = z.object({
   title: z.string().describe('The title of the generated course.'),
   description: z.string().describe('The description of the generated course.'),
-  lessons: z.array(
-    z.object({
-      title: z.string().describe('The title of the lesson.'),
-      content: z.string().describe('The content of the lesson.'),
-      quiz: z.array(
-        z.object({
-          stem: z.string().describe('The question stem.'),
-          options: z.array(z.string()).describe('The question options.'),
-          answer: z.string().describe('The correct answer.'),
-        })
-      ),
-    })
-  ).describe('The lessons in the course.'),
+  lessons: z.array(LessonSchema).describe('The lessons in the course, each containing modules and chapters.'),
   questions: z
     .array(
       z.object({
@@ -69,7 +77,7 @@ const GenerateCourseFromTopicOutputSchema = z.object({
           .describe('The difficulty level of the question.'),
       })
     )
-    .describe('The questions in the course.'),
+    .describe('The final exam questions for the course.'),
 });
 
 export type GenerateCourseFromTopicOutput = z.infer<
@@ -80,15 +88,17 @@ const generateCourseFromTopicPrompt = ai.definePrompt({
   name: 'generateCourseFromTopicPrompt',
   input: {schema: GenerateCourseFromTopicInputSchema},
   output: {schema: GenerateCourseFromTopicOutputSchema},
-  prompt: `You are an AI course generator that helps instructors create courses quickly.
+  prompt: `You are an AI course generator that helps instructors create courses quickly, following a micro-learning structure.
 
-  Given a topic, syllabus, difficulty, number of MCQ questions, number of essay questions, and creativity level, you will generate a course with lessons and questions.
+  Given a topic, syllabus, difficulty, and creativity level, you will generate a course with a nested structure of Lessons > Modules > Chapters.
+  Each chapter should contain content and can optionally have a small quiz.
+  You will also generate a final exam for the course with the specified number of MCQ and essay questions.
 
   Topic: {{{topic}}}
   Syllabus: {{{syllabus}}}
   Difficulty: {{{difficulty}}}
-  Number of MCQ Questions: {{{mcqCount}}}
-  Number of Essay Questions: {{{essayCount}}}
+  Number of Final Exam MCQ Questions: {{{mcqCount}}}
+  Number of Final Exam Essay Questions: {{{essayCount}}}
   Creativity Level: {{{creativity}}}
 
   Output the course in the following JSON format:
@@ -97,23 +107,38 @@ const generateCourseFromTopicPrompt = ai.definePrompt({
     "description": "Course Description",
     "lessons": [
       {
-        "title": "Lesson Title",
-        "content": "Lesson Content",
-        "quiz": [
+        "title": "Lesson 1: Introduction",
+        "modules": [
           {
-            "stem": "Question Stem",
-            "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-            "answer": "Correct Answer"
+            "title": "Module 1.1: Core Concepts",
+            "chapters": [
+              {
+                "title": "Chapter 1.1.1: First Concept",
+                "content": "Detailed content for the first concept...",
+                "quiz": [
+                  {
+                    "stem": "What is the first concept?",
+                    "options": ["A", "B", "C"],
+                    "answer": "A"
+                  }
+                ]
+              },
+              {
+                "title": "Chapter 1.1.2: Second Concept",
+                "content": "Detailed content for the second concept...",
+                "quiz": []
+              }
+            ]
           }
         ]
       }
     ],
     "questions": [
       {
-        "stem": "Question Stem",
+        "stem": "Final exam question stem...",
         "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
         "answer": "Correct Answer",
-        "difficulty": "Beginner | Intermediate | Expert"
+        "difficulty": "Intermediate"
       }
     ]
   }`,

@@ -28,5 +28,6 @@ export type Attempt = {
 };
 
 export type { Roadmap } from './roadmap';
-
+export type { Module } from './module';
+export type { Chapter } from './chapter';
     

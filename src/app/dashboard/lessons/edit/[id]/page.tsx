@@ -1,11 +1,10 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc } from '@/firebase';
-import { useMemoFirebase } from '@/firebase/provider';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,16 +13,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Lesson } from '@/types/lesson';
+import type { Module } from '@/types/module';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { PlaceholderContent } from '@/components/placeholder-content';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long.'),
-  content: z.string().min(20, 'Content must be at least 20 characters long.'),
 });
 
 export default function EditLessonPage() {
@@ -41,11 +40,18 @@ export default function EditLessonPage() {
 
   const { data: lesson, isLoading: isLessonLoading } = useDoc<Lesson>(lessonDocRef);
 
+  const modulesQuery = useMemoFirebase(() => {
+    if (!firestore || !lessonId) return null;
+    return query(collection(firestore, 'modules'), where('lessonId', '==', lessonId));
+  }, [firestore, lessonId]);
+
+  const { data: modules, isLoading: areModulesLoading } = useCollection<Module>(modulesQuery);
+
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: '',
-      content: '',
     },
   });
 
@@ -53,7 +59,6 @@ export default function EditLessonPage() {
     if (lesson) {
       form.reset({
         title: lesson.title,
-        content: lesson.content,
       });
     }
   }, [lesson, form]);
@@ -83,7 +88,9 @@ export default function EditLessonPage() {
     }
   }
 
-  if (isLessonLoading) {
+  const isLoading = isLessonLoading || areModulesLoading;
+
+  if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -107,7 +114,7 @@ export default function EditLessonPage() {
     <Card className="max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle>Edit Lesson</CardTitle>
-        <CardDescription>Make changes to your lesson content below.</CardDescription>
+        <CardDescription>Change the lesson title. Modules and Chapters are managed separately.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -125,24 +132,22 @@ export default function EditLessonPage() {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="content"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Lesson Content</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Enter the lesson content here..."
-                      {...field}
-                      rows={15}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex justify-end gap-4">
+
+            <div className='space-y-4 pt-4'>
+                <h3 className='text-lg font-semibold'>Modules in this Lesson</h3>
+                {modules && modules.length > 0 ? (
+                    <ul className='list-disc pl-5 space-y-2'>
+                        {modules.map(module => (
+                            <li key={module.id}>{module.title}</li>
+                        ))}
+                    </ul>
+                ): (
+                    <p className='text-sm text-muted-foreground'>No modules found for this lesson.</p>
+                )}
+
+            </div>
+            
+            <div className="flex justify-end gap-4 pt-6">
               <Button type="button" variant="outline" onClick={() => router.push('/dashboard/lessons')} disabled={isSaving}>
                 Cancel
               </Button>

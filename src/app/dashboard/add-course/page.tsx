@@ -158,60 +158,90 @@ function AiCourseCreatorContent() {
       const { difficulty, topic, facultyCode } = aiForm.getValues();
       const courseCode = generateCourseCode(topic);
   
+      // 1. Create Course
       const courseRef = doc(collection(firestore, "courses"));
-  
-      const questionIds = course.questions.map((q) => {
+      
+      // 2. Create Final Exam Questions
+      const examQuestionIds = course.questions.map((q) => {
         const questionRef = doc(collection(firestore, "questions"));
         batch.set(questionRef, {
+          id: questionRef.id,
           stem: q.stem,
           options: q.options,
           correctAnswer: q.answer,
           difficulty: q.difficulty,
-          id: questionRef.id,
         });
         return questionRef.id;
       });
   
-      course.lessons.forEach((lessonData) => {
-        const lessonRef = doc(collection(firestore, "lessons"));
-        let quizId: string | null = null;
-  
-        if (lessonData.quiz && lessonData.quiz.length > 0) {
-          const quizRef = doc(collection(firestore, "quizzes"));
-          quizId = quizRef.id;
-  
-          const quizQuestionIds = lessonData.quiz.map((quizItem) => {
-            const quizQuestionRef = doc(collection(firestore, "questions"));
-            batch.set(quizQuestionRef, {
-              stem: quizItem.stem,
-              options: quizItem.options,
-              correctAnswer: quizItem.answer,
-              difficulty: difficulty,
-              id: quizQuestionRef.id,
-            });
-            return quizQuestionRef.id;
-          });
-  
-          batch.set(quizRef, { id: quizRef.id, questionIds: quizQuestionIds });
-        }
-  
-        batch.set(lessonRef, {
-          id: lessonRef.id,
-          courseId: courseRef.id,
-          title: lessonData.title,
-          content: lessonData.content,
-          ...(quizId && { quizId: quizId }),
-        });
-      });
-  
+      // 3. Create Final Exam
       const examRef = doc(collection(firestore, "exams"));
       batch.set(examRef, {
         id: examRef.id,
         courseId: courseRef.id,
-        questionIds: questionIds,
-        blueprint: `Exam for ${course.title}`,
+        questionIds: examQuestionIds,
+        blueprint: `Final Exam for ${course.title}`,
       });
   
+      // 4. Iterate through Lessons > Modules > Chapters
+      const lessonIds = course.lessons.map((lessonData) => {
+        const lessonRef = doc(collection(firestore, "lessons"));
+        const moduleIds = lessonData.modules.map((moduleData) => {
+          const moduleRef = doc(collection(firestore, "modules"));
+          const chapterIds = moduleData.chapters.map((chapterData) => {
+            const chapterRef = doc(collection(firestore, "chapters"));
+            let quizId: string | null = null;
+  
+            // Create Chapter Quiz if it exists
+            if (chapterData.quiz && chapterData.quiz.length > 0) {
+              const quizRef = doc(collection(firestore, "quizzes"));
+              quizId = quizRef.id;
+              const quizQuestionIds = chapterData.quiz.map((quizItem) => {
+                const quizQuestionRef = doc(collection(firestore, "questions"));
+                batch.set(quizQuestionRef, {
+                  id: quizQuestionRef.id,
+                  stem: quizItem.stem,
+                  options: quizItem.options,
+                  correctAnswer: quizItem.answer,
+                  difficulty: difficulty,
+                });
+                return quizQuestionRef.id;
+              });
+              batch.set(quizRef, { id: quizRef.id, questionIds: quizQuestionIds });
+            }
+  
+            // Set Chapter Data
+            batch.set(chapterRef, {
+              id: chapterRef.id,
+              moduleId: moduleRef.id,
+              title: chapterData.title,
+              content: chapterData.content,
+              ...(quizId && { quizId }),
+            });
+            return chapterRef.id;
+          });
+  
+          // Set Module Data
+          batch.set(moduleRef, {
+            id: moduleRef.id,
+            lessonId: lessonRef.id,
+            title: moduleData.title,
+            chapterIds: chapterIds,
+          });
+          return moduleRef.id;
+        });
+  
+        // Set Lesson Data
+        batch.set(lessonRef, {
+          id: lessonRef.id,
+          courseId: courseRef.id,
+          title: lessonData.title,
+          moduleIds: moduleIds,
+        });
+        return lessonRef.id;
+      });
+  
+      // 5. Set Course Data
       batch.set(courseRef, {
         id: courseRef.id,
         title: course.title,
@@ -220,21 +250,28 @@ function AiCourseCreatorContent() {
         competency: topic,
         courseCode: courseCode,
         facultyCode: facultyCode,
+        // We don't save lessonIds directly to the course anymore, as they are linked via courseId in lessons collection
       });
   
       await batch.commit();
   
       toast({
         title: "Course Saved!",
-        description: `"${course.title}" has been saved successfully.`,
+        description: `"${course.title}" has been saved successfully with its full structure.`,
       });
       
       setCourse(null);
       aiForm.reset();
   
     } catch (e: any) {
+      console.error("Failed to save course:", e);
+      toast({
+        variant: 'destructive',
+        title: 'Save Failed',
+        description: e.message || 'An error occurred while saving the course.'
+      });
       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'batch operation',
+        path: 'batch operation (course creation)',
         operation: 'write',
         requestResourceData: course,
       }));
@@ -344,7 +381,7 @@ function AiCourseCreatorContent() {
             <Card>
               <CardHeader>
                 <CardTitle>AI Course Generator</CardTitle>
-                <CardDescription>Generate a course with lessons and exams using AI.</CardDescription>
+                <CardDescription>Generate a course with a full Lesson > Module > Chapter structure.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Form {...aiForm}>
@@ -458,33 +495,51 @@ function AiCourseCreatorContent() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                  <h3 className="mb-4 text-lg font-semibold font-headline">Lessons</h3>
+                  <h3 className="mb-4 text-lg font-semibold font-headline">Course Structure</h3>
                   <Accordion type="single" collapsible className="w-full">
-                    {course.lessons.map((lesson, index) => (
-                      <AccordionItem value={`item-${index}`} key={index}>
-                        <AccordionTrigger>{lesson.title}</AccordionTrigger>
+                    {course.lessons.map((lesson, lessonIndex) => (
+                      <AccordionItem value={`lesson-${lessonIndex}`} key={lessonIndex}>
+                        <AccordionTrigger className="font-semibold text-base">{lesson.title}</AccordionTrigger>
                         <AccordionContent>
-                          <div className="prose prose-sm max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: lesson.content.replace(/\n/g, '<br />') }} />
-                          {lesson.quiz && lesson.quiz.length > 0 && (
-                            <div className="mt-4 rounded-md border p-4">
-                              <h4 className="font-semibold text-sm mb-3">Lesson Quiz</h4>
-                              <ul className="list-decimal pl-5 space-y-3 text-sm">
-                                {lesson.quiz.map((q, i) => (
-                                  <li key={i}>
-                                    <p className="font-medium">{q.stem}</p>
-                                    <ul className="list-disc pl-5 mt-2 space-y-1">
-                                      {q.options.map((opt, j) => (
-                                        <li key={j} className={opt === q.answer ? 'font-bold text-primary' : ''}>
-                                          {opt}
-                                          {opt === q.answer && ' (Correct Answer)'}
-                                        </li>
+                           <Accordion type="single" collapsible className="w-full pl-4 border-l">
+                             {lesson.modules.map((module, moduleIndex) => (
+                               <AccordionItem value={`module-${lessonIndex}-${moduleIndex}`} key={moduleIndex} className="border-b-0">
+                                 <AccordionTrigger className="text-md">{module.title}</AccordionTrigger>
+                                 <AccordionContent>
+                                    <Accordion type="single" collapsible className="w-full pl-4 border-l">
+                                      {module.chapters.map((chapter, chapterIndex) => (
+                                        <AccordionItem value={`chapter-${lessonIndex}-${moduleIndex}-${chapterIndex}`} key={chapterIndex}>
+                                           <AccordionTrigger>{chapter.title}</AccordionTrigger>
+                                           <AccordionContent>
+                                                <div className="prose prose-sm max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: chapter.content.replace(/\n/g, '<br />') }} />
+                                                {chapter.quiz && chapter.quiz.length > 0 && (
+                                                  <div className="mt-4 rounded-md border p-4">
+                                                    <h4 className="font-semibold text-sm mb-3">Chapter Quiz</h4>
+                                                    <ul className="list-decimal pl-5 space-y-3 text-sm">
+                                                      {chapter.quiz.map((q, i) => (
+                                                        <li key={i}>
+                                                          <p className="font-medium">{q.stem}</p>
+                                                          <ul className="list-disc pl-5 mt-2 space-y-1">
+                                                            {q.options.map((opt, j) => (
+                                                              <li key={j} className={opt === q.answer ? 'font-bold text-primary' : ''}>
+                                                                {opt}
+                                                                {opt === q.answer && ' (Correct Answer)'}
+                                                              </li>
+                                                            ))}
+                                                          </ul>
+                                                        </li>
+                                                      ))}
+                                                    </ul>
+                                                  </div>
+                                                )}
+                                           </AccordionContent>
+                                        </AccordionItem>
                                       ))}
-                                    </ul>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                                    </Accordion>
+                                 </AccordionContent>
+                               </AccordionItem>
+                             ))}
+                           </Accordion>
                         </AccordionContent>
                       </AccordionItem>
                     ))}
@@ -497,7 +552,7 @@ function AiCourseCreatorContent() {
                     <div className="text-center text-muted-foreground">
                         <Wand2 className="mx-auto h-12 w-12" />
                         <h3 className="mt-4 text-lg font-semibold">Ready to build a course?</h3>
-                        <p className="mt-1 max-w-sm mx-auto">Fill out the form to generate a new course with lessons and exams, all powered by AI.</p>
+                        <p className="mt-1 max-w-sm mx-auto">Fill out the form to generate a new course with a full micro-learning structure.</p>
                     </div>
                 </div>
             )}
