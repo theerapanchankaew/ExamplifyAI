@@ -12,6 +12,7 @@ import * as z from 'zod';
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 import type { Course } from '@/types/course';
@@ -34,6 +35,7 @@ const formSchema = z.object({
 export default function RoadmapCreatorPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [roadmapToDelete, setRoadmapToDelete] = useState<Roadmap | null>(null);
@@ -62,8 +64,6 @@ export default function RoadmapCreatorPage() {
       const roadmapCollectionRef = collection(firestore, "roadmaps");
       const newRoadmapRef = doc(roadmapCollectionRef);
 
-      // Using a batch for a single operation is fine, but not strictly necessary.
-      // It's good practice if you plan to add more operations to the transaction.
       const batch = writeBatch(firestore);
       batch.set(newRoadmapRef, {
         id: newRoadmapRef.id,
@@ -87,6 +87,10 @@ export default function RoadmapCreatorPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+  
+  const handleEditClick = (roadmapId: string) => {
+    router.push(`/dashboard/roadmaps/edit/${roadmapId}`);
   };
 
   const handleDeleteClick = (roadmap: Roadmap) => {
@@ -249,6 +253,14 @@ export default function RoadmapCreatorPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
+                           <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleEditClick(roadmap.id)}
+                           >
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Edit Roadmap</span>
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="icon" 
