@@ -217,7 +217,10 @@ export default function LessonsPage() {
                   <AccordionItem value={courseDetails.id} key={courseDetails.id}>
                     <AccordionTrigger>
                       <div className="flex flex-col md:flex-row md:items-center justify-between w-full pr-4">
-                        <span className="text-lg font-semibold">{courseDetails.title}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-lg font-semibold">{courseDetails.title}</span>
+                          <Badge variant="outline" className="font-mono text-xs">{courseDetails.id}</Badge>
+                        </div>
                         <div className="flex items-center gap-2 mt-2 md:mt-0 text-sm">
                            {courseDetails.courseCode && <Badge variant="outline" className="font-mono">{courseDetails.courseCode}</Badge>}
                            {courseDetails.competency && <Badge variant="secondary">{courseDetails.competency}</Badge>}
