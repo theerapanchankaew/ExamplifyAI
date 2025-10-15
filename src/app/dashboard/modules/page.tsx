@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -123,12 +124,7 @@ export default function ModulesPage() {
   };
 
   const handleEditClick = (moduleId: string) => {
-    // This would navigate to an edit page for the module, which is not yet created.
-    // router.push(`/dashboard/modules/edit/${moduleId}`);
-     toast({
-        title: "Edit Not Implemented",
-        description: "Editing modules will be available in a future update.",
-    });
+    router.push(`/dashboard/modules/edit/${moduleId}`);
   };
 
   return (
@@ -172,7 +168,6 @@ export default function ModulesPage() {
                                     variant="ghost" 
                                     size="icon" 
                                     onClick={() => handleEditClick(module.id)}
-                                    disabled
                                   >
                                     <Edit className="h-4 w-4" />
                                     <span className="sr-only">Edit Module</span>
