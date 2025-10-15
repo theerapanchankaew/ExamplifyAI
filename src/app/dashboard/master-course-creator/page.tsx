@@ -200,7 +200,7 @@ export default function MasterCourseCreatorPage() {
 
     } catch (e: any) {
       if (e instanceof z.ZodError) {
-        setJsonError(`JSON validation failed: ${e.errors.map(err => `${err.path.join('.')} - ${err.message}`).join(', ')}`);
+        setJsonError(`JSON validation failed: ${e.errors.map(err => `[${err.path.join('.')}] ${err.message}`).join(', ')}`);
       } else if (e instanceof SyntaxError) {
         setJsonError(`Invalid JSON format: ${e.message}`);
       } else {
