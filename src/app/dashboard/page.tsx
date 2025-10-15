@@ -65,20 +65,22 @@ export default function DashboardPage() {
   // This effect handles the custom claim refresh logic.
   useEffect(() => {
     const checkAdminClaim = async () => {
-      if (authUser && isAdmin) {
-        const tokenResult = await authUser.getIdTokenResult();
-        if (!tokenResult.claims.role || tokenResult.claims.role !== 'admin') {
-          // Claim is not present or incorrect, force a refresh.
-          await authUser.getIdToken(true);
+      if (authUser) {
+        if (isAdmin) {
+            const tokenResult = await authUser.getIdTokenResult();
+            if (!tokenResult.claims.role || tokenResult.claims.role !== 'admin') {
+                // Claim is not present or incorrect, force a refresh.
+                await authUser.getIdToken(true);
+            }
         }
+        // Mark token as refreshed (or not needing refresh) to allow queries to run.
+        setIsTokenRefreshed(true);
       }
-      // Mark token as refreshed (or not needing refresh) to allow queries to run.
-      setIsTokenRefreshed(true);
     };
-    if(!isAuthUserLoading && !isProfileLoading) {
+    if(!isAuthUserLoading && authUser && userProfile) {
       checkAdminClaim();
     }
-  }, [authUser, isAdmin, isAuthUserLoading, isProfileLoading]);
+  }, [authUser, userProfile, isAdmin, isAuthUserLoading]);
 
 
   const coursesQuery = useMemoFirebase(() => {
@@ -97,7 +99,7 @@ export default function DashboardPage() {
       where('timestamp', '>=', sevenDaysAgo),
       orderBy('timestamp', 'desc')
     );
-  }, [firestore, isAdmin, isTokenRefreshed]);
+  }, [firestore, isAdmin, isTokenRefreshed, sevenDaysAgo]);
   const { data: recentAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
   const recentUsersQuery = useMemoFirebase(() => {
@@ -272,5 +274,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-
-    
