@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -16,6 +17,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { BookA, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { useIsClient } from '@/hooks/use-is-client';
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email." }),
@@ -28,6 +30,7 @@ export default function LoginPage() {
   const firestore = useFirestore();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const isClient = useIsClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -83,6 +86,10 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (!isClient) {
+    return null;
   }
 
   return (
