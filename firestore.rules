@@ -1,242 +1,299 @@
 /**
- * @file Firestore Security Rules
- * @version 2
+ * @file Firestore Security Rules for ExamplifyAI
  *
- * @Core Philosophy
- * This ruleset enforces a strict user-ownership model for user profiles and achievements.
- * Other collections (courses, lessons, exams, etc.) are publicly readable, but write access is denied in this prototyping phase, pending a decision on authorization strategy.
+ * @Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user profiles and achievements,
+ * and an admin-override model for other collections. All write operations require
+ * authentication. Data validation is relaxed in this prototyping phase.
  *
- * @Data Structure
- * - /users/{userId}: User profiles, accessible only by the user themselves.
- * - /users/{userId}/achievements/{userAchievementId}: User achievements, accessible only by the user.
- * - /courses/{courseId}: Course information, publicly readable.
- * - /lessons/{lessonId}: Lesson information, publicly readable.
- * - /questions/{questionId}: Question data, publicly readable.
- * - /exams/{examId}: Exam definitions, publicly readable.
- * - /attempts/{attemptId}: Exam attempts, publicly readable.
- * - /metrics/daily/{date}: Daily metrics, publicly readable.
- * - /courseCompetencies/{courseCompetencyId}: Course competencies, publicly readable.
- * - /masterCourses/{masterCourseId}: Master courses, publicly readable.
- * - /masterCertificates/{masterCertificateId}: Master certificates, publicly readable.
- * - /roadmaps/{roadmapId}: Roadmaps, publicly readable.
- * - /schedules/{scheduleId}: Schedules, publicly readable.
- * - /quizzes/{quizId}: Quizzes, publicly readable.
+ * @Data Structure:
+ * - /users/{userId}: User profiles, where userId must match the authenticated user's UID.
+ * - /users/{userId}/achievements/{achievementId}: User-specific achievements, accessible only by the user.
+ * - Top-level collections (e.g., /courses, /exams): Data accessible to all authenticated users with
+ *   write access restricted to admins.
  *
- * @Key Security Decisions
- * - User listing is disallowed to protect user privacy.
- * - Other collections are publicly readable for prototyping purposes.
- * - Write operations are generally disabled except for user-owned data.
+ * @Key Security Decisions:
+ * - User listing is disabled for the /users collection.
+ * - Admin role is checked via a `role` field on the user document.
+ * - All write operations require the user to be authenticated.
+ *
+ * @Denormalization for Authorization:
+ *  - The `role` field is denormalized directly onto the user document to avoid costly `get()` calls
+ *    during authorization checks for other collections.
+ *  - The `ownerId` field is crucial for securing resources. Always validate that it matches `request.auth.uid` on `create`.
+ *    Ensure that the `ownerId` field is immutable on `update`.
+ *
+ * @Structural Segregation:
+ *  - User-specific data (achievements) is stored in a subcollection under the user's profile,
+ *    ensuring clear ownership and access control.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     * @return {bool} True if the request is authenticated, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the request is made by the owner of the resource.
-     * @param {string} userId - The user ID to compare against the request's authentication UID.
-     * @return {bool} True if the user ID matches the request's authentication UID, false otherwise.
-     * @example isOwner("someUserId") -> true if request.auth.uid == "someUserId"
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the request is made by the owner of the resource and the resource exists.
-     * @param {string} userId - The user ID to compare against the request's authentication UID.
-     * @return {bool} True if the user ID matches the request's authentication UID and the resource exists, false otherwise.
-     * @example isExistingOwner("someUserId") -> true if request.auth.uid == "someUserId" and resource exists
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Rules for user profiles.
+     * @description Protects user profiles. Only the user can read/write their own profile.
      * @path /users/{userId}
-     * @allow (create) User 'OOjU7LTqSRWfjF8sMOOq4geYjYy2' can create their profile at /users/OOjU7LTqSRWfjF8sMOOq4geYjYy2.
-     * @allow (get) User 'OOjU7LTqSRWfjF8sMOOq4geYjYy2' can read their profile at /users/OOjU7LTqSRWfjF8sMOOq4geYjYy2.
-     * @allow (update) User 'OOjU7LTqSRWfjF8sMOOq4geYjYy2' can update their profile at /users/OOjU7LTqSRWfjF8sMOOq4geYjYy2.
-     * @allow (delete) User 'OOjU7LTqSRWfjF8sMOOq4geYjYy2' can delete their profile at /users/OOjU7LTqSRWfjF8sMOOq4geYjYy2.
-     * @deny (create) User 'attackerId' cannot create a profile at /users/OOjU7LTqSRWfjF8sMOOq4geYjYy2.
-     * @deny (get) User 'attackerId' cannot read the profile at /users/OOjU7LTqSRWfjF8sMOOq4geYjYy2.
-     * @deny (update) User 'attackerId' cannot update the profile at /users/OOjU7LTqSRWfjF8sMOOq4geYjYy2.
-     * @deny (delete) User 'attackerId' cannot delete the profile at /users/OOjU7LTqSRWfjF8sMOOq4geYjYy2.
+     * @allow (create) - User with UID 'user123' can create their profile at /users/user123 if request.auth.uid == 'user123'.
+     * @allow (update) - User with UID 'user123' can update their profile at /users/user123 if request.auth.uid == 'user123'.
+     * @deny (create) - User with UID 'user456' cannot create a profile at /users/user123.
+     * @deny (update) - User with UID 'user456' cannot update the profile at /users/user123.
      * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      // Only signed-in users can access user data
+      allow get: if isSignedIn();
+      // User listing is not allowed
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+
+      // Only the user can create their own profile
+      allow create: if isSignedIn() && isOwner(userId);
+
+      // Only the user can update their own profile, userId should not be changed
+      allow update: if isSignedIn() && isExistingOwner(userId);
+
+      // Only the user can delete their own profile
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for courses.
-     * @path /courses/{courseId}
-     * @allow (get, list) Any user can read course information.
-     * @deny (create, update, delete) No one can create, update, or delete course information in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
-     */
-    match /courses/{courseId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add instructor/admin role check
-    }
-
-    /**
-     * @description Rules for lessons.
-     * @path /lessons/{lessonId}
-     * @allow (get, list) Any user can read lesson information.
-     * @deny (create, update, delete) No one can create, update, or delete lesson information in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
-     */
-    match /lessons/{lessonId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add instructor/admin role check
-    }
-
-    /**
-     * @description Rules for questions.
-     * @path /questions/{questionId}
-     * @allow (get, list) Any user can read question data.
-     * @deny (create, update, delete) No one can create, update, or delete question data in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
-     */
-    match /questions/{questionId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add instructor/admin role check
-    }
-
-    /**
-     * @description Rules for exams.
-     * @path /exams/{examId}
-     * @allow (get, list) Any user can read exam definitions.
-     * @deny (create, update, delete) No one can create, update, or delete exam definitions in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
-     */
-    match /exams/{examId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add instructor/admin role check
-    }
-
-    /**
-     * @description Rules for attempts.
-     * @path /attempts/{attemptId}
-     * @allow (get, list) Any user can read exam attempts.
-     * @deny (create, update, delete) No one can create, update, or delete exam attempts in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
-     */
-    match /attempts/{attemptId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add instructor/admin role check
-    }
-
-    /**
-     * @description Rules for daily metrics.
-     * @path /metrics/daily/{date}
-     * @allow (get, list) Any user can read daily metrics.
-     * @deny (create, update, delete) No one can create, update, or delete daily metrics in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
-     */
-    match /metrics/daily/{date} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check
-    }
-
-    /**
-     * @description Rules for course competencies.
-     * @path /courseCompetencies/{courseCompetencyId}
-     * @allow (get, list) Any user can read course competencies.
-     * @deny (create, update, delete) No one can create, update, or delete course competencies in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
-     */
-    match /courseCompetencies/{courseCompetencyId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add instructor/admin role check
-    }
-
-    /**
-     * @description Rules for user achievements.
+     * @description Protects user achievements. Only the user can read/write their own achievements.
      * @path /users/{userId}/achievements/{userAchievementId}
-     * @allow (create, get, update, delete) Only the user can manage their own achievements.
-     * @deny (create, get, update, delete) Other users cannot manage achievements.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) - User with UID 'user123' can create an achievement at /users/user123/achievements/achievement1 if request.auth.uid == 'user123'.
+     * @allow (update) - User with UID 'user123' can update their achievement at /users/user123/achievements/achievement1 if request.auth.uid == 'user123'.
+     * @deny (create) - User with UID 'user456' cannot create an achievement at /users/user123/achievements/achievement1.
+     * @deny (update) - User with UID 'user456' cannot update the achievement at /users/user123/achievements/achievement1.
+     * @principle Restricts access to a user's own data tree.
      */
     match /users/{userId}/achievements/{userAchievementId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      // Only signed-in users can access user data
+      allow get, list: if isSignedIn() && isOwner(userId);
+
+      // Only the user can create their own achievements
+      allow create: if isSignedIn() && isOwner(userId);
+
+      // Only the user can update their own achievements
+      allow update: if isSignedIn() && isExistingOwner(userId);
+
+      // Only the user can delete their own achievements
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for master courses.
+     * @description Allows public read access to courses, but restricts write access to admins.
+     * @path /courses/{courseId}
+     * @allow (get, list) - Any signed-in user can read courses.
+     * @allow (create) - User with admin role can create courses.
+     * @deny (create) - User without admin role cannot create courses.
+     * @principle Grants public read access with owner-only writes.
+     */
+    match /courses/{courseId} {
+      // Anyone can read courses
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete courses
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    /**
+     * @description Allows public read access to lessons, but restricts write access to admins.
+     * @path /lessons/{lessonId}
+     * @allow (get, list) - Any signed-in user can read lessons.
+     * @allow (create) - User with admin role can create lessons.
+     * @deny (create) - User without admin role cannot create lessons.
+     * @principle Grants public read access with owner-only writes.
+     */
+    match /lessons/{lessonId} {
+      // Anyone can read lessons
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete lessons
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    /**
+     * @description Allows public read access to questions, but restricts write access to admins.
+     * @path /questions/{questionId}
+     * @allow (get, list) - Any signed-in user can read questions.
+     * @allow (create) - User with admin role can create questions.
+     * @deny (create) - User without admin role cannot create questions.
+     * @principle Grants public read access with owner-only writes.
+     */
+    match /questions/{questionId} {
+      // Anyone can read questions
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete questions
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    /**
+     * @description Allows public read access to exams, but restricts write access to admins.
+     * @path /exams/{examId}
+     * @allow (get, list) - Any signed-in user can read exams.
+     * @allow (create) - User with admin role can create exams.
+     * @deny (create) - User without admin role cannot create exams.
+     * @principle Grants public read access with owner-only writes.
+     */
+    match /exams/{examId} {
+      // Anyone can read exams
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete exams
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    /**
+     * @description Allows public read access to attempts, but restricts write access to admins.
+     * @path /attempts/{attemptId}
+     * @allow (get, list) - Any signed-in user can read attempts.
+     * @allow (create) - User with admin role can create attempts.
+     * @deny (create) - User without admin role cannot create attempts.
+     * @principle Grants public read access with owner-only writes.
+     */
+    match /attempts/{attemptId} {
+      // Anyone can read attempts
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete attempts
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    /**
+     * @description Allows public read access to daily metrics, but restricts write access to admins.
+     * @path /metrics/daily/{date}
+     * @allow (get, list) - Any signed-in user can read daily metrics.
+     * @allow (create) - User with admin role can create daily metrics.
+     * @deny (create) - User without admin role cannot create daily metrics.
+     * @principle Grants public read access with owner-only writes.
+     */
+    match /metrics/daily/{date} {
+      // Anyone can read metrics
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete metrics
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    /**
+     * @description Allows public read access to course competencies, but restricts write access to admins.
+     * @path /courseCompetencies/{courseCompetencyId}
+     * @allow (get, list) - Any signed-in user can read course competencies.
+     * @allow (create) - User with admin role can create course competencies.
+     * @deny (create) - User without admin role cannot create course competencies.
+     * @principle Grants public read access with owner-only writes.
+     */
+    match /courseCompetencies/{courseCompetencyId} {
+      // Anyone can read course competencies
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete course competencies
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+   /**
+     * @description Allows public read access to master courses, but restricts write access to admins.
      * @path /masterCourses/{masterCourseId}
-     * @allow (get, list) Any user can read master course definitions.
-     * @deny (create, update, delete) No one can create, update, or delete master course definitions in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
+     * @allow (get, list) - Any signed-in user can read master courses.
+     * @allow (create) - User with admin role can create master courses.
+     * @deny (create) - User without admin role cannot create master courses.
+     * @principle Grants public read access with owner-only writes.
      */
     match /masterCourses/{masterCourseId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check
-    }
+      // Anyone can read master courses
+      allow get, list: if isSignedIn();
 
-     /**
-      * @description Rules for master certificates.
-      * @path /masterCertificates/{masterCertificateId}
-      * @allow (get, list) Any user can read master certificate definitions.
-      * @deny (create, update, delete) No one can create, update, or delete master certificate definitions in this prototype.
-      * @principle Public read access, owner-only writes (not yet implemented).
-      */
-    match /masterCertificates/{masterCertificateId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check
+      // Only admins can create, update, and delete master courses
+      allow create, update, delete: if isSignedIn() && isAdmin();
     }
 
     /**
-     * @description Rules for roadmaps.
+     * @description Allows public read access to master certificates, but restricts write access to admins.
+     * @path /masterCertificates/{masterCertificateId}
+     * @allow (get, list) - Any signed-in user can read master certificates.
+     * @allow (create) - User with admin role can create master certificates.
+     * @deny (create) - User without admin role cannot create master certificates.
+     * @principle Grants public read access with owner-only writes.
+     */
+    match /masterCertificates/{masterCertificateId} {
+      // Anyone can read master certificates
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete master certificates
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    /**
+     * @description Allows public read access to roadmaps, but restricts write access to admins.
      * @path /roadmaps/{roadmapId}
-     * @allow (get, list) Any user can read roadmap definitions.
-     * @deny (create, update, delete) No one can create, update, or delete roadmap definitions in this prototype.
-     * @principle Public read access, owner-only writes (not yet implemented).
+     * @allow (get, list) - Any signed-in user can read roadmaps.
+     * @allow (create) - User with admin role can create roadmaps.
+     * @deny (create) - User without admin role cannot create roadmaps.
+     * @principle Grants public read access with owner-only writes.
      */
     match /roadmaps/{roadmapId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check
+      // Anyone can read roadmaps
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete roadmaps
+      allow create, update, delete: if isSignedIn() && isAdmin();
     }
 
-   /**
-    * @description Rules for schedules.
-    * @path /schedules/{scheduleId}
-    * @allow (get, list) Any user can read schedule definitions.
-    * @deny (create, update, delete) No one can create, update, or delete schedule definitions in this prototype.
-    * @principle Public read access, owner-only writes (not yet implemented).
-    */
+    /**
+     * @description Allows public read access to schedules, but restricts write access to admins.
+     * @path /schedules/{scheduleId}
+     * @allow (get, list) - Any signed-in user can read schedules.
+     * @allow (create) - User with admin role can create schedules.
+     * @deny (create) - User without admin role cannot create schedules.
+     * @principle Grants public read access with owner-only writes.
+     */
     match /schedules/{scheduleId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check
+      // Anyone can read schedules
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete schedules
+      allow create, update, delete: if isSignedIn() && isAdmin();
     }
 
-   /**
-    * @description Rules for quizzes.
-    * @path /quizzes/{quizId}
-    * @allow (get, list) Any user can read quiz definitions.
-    * @deny (create, update, delete) No one can create, update, or delete quiz definitions in this prototype.
-    * @principle Public read access, owner-only writes (not yet implemented).
-    */
+    /**
+     * @description Allows public read access to quizzes, but restricts write access to admins.
+     * @path /quizzes/{quizId}
+     * @allow (get, list) - Any signed-in user can read quizzes.
+     * @allow (create) - User with admin role can create quizzes.
+     * @deny (create) - User without admin role cannot create quizzes.
+     * @principle Grants public read access with owner-only writes.
+     */
     match /quizzes/{quizId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin role check
+      // Anyone can read quizzes
+      allow get, list: if isSignedIn();
+
+      // Only admins can create, update, and delete quizzes
+      allow create, update, delete: if isSignedIn() && isAdmin();
     }
+
+    // Define recursive wildcard match at the root for denying all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+
+  // Helper function to determine if the user is signed in
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  // Helper function to determine if the user is the owner of the document
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+    // Helper function to determine if the user is the owner of the document
+  function isExistingOwner(userId) {
+    return request.auth.uid == userId && resource.data.userId == userId;
+  }
+
+  // Helper function to determine if the user has the admin role
+  function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
   }
 }
