@@ -33,7 +33,7 @@ import { BookOpen, Activity, Percent, Users as UsersIcon, Loader2 } from "lucide
 import type { UserProfile, Attempt } from "@/types"
 import type { Course } from '@/types/course'
 import { subDays, format, startOfDay } from 'date-fns'
-import { useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import { PlaceholderContent } from "@/components/placeholder-content"
 
@@ -52,6 +52,7 @@ const chartConfig = {
 export default function DashboardPage() {
   const firestore = useFirestore();
   const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
+  const [isTokenRefreshed, setIsTokenRefreshed] = useState(false);
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
@@ -61,27 +62,49 @@ export default function DashboardPage() {
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
   const isAdmin = userProfile?.role === 'admin';
   
+  // This effect handles the custom claim refresh logic.
+  useEffect(() => {
+    const checkAdminClaim = async () => {
+      if (authUser && isAdmin) {
+        const tokenResult = await authUser.getIdTokenResult();
+        if (!tokenResult.claims.role || tokenResult.claims.role !== 'admin') {
+          // Claim is not present or incorrect, force a refresh.
+          await authUser.getIdToken(true);
+        }
+      }
+      // Mark token as refreshed (or not needing refresh) to allow queries to run.
+      setIsTokenRefreshed(true);
+    };
+    if(!isAuthUserLoading && !isProfileLoading) {
+      checkAdminClaim();
+    }
+  }, [authUser, isAdmin, isAuthUserLoading, isProfileLoading]);
+
+
   const coursesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    // Wait for token refresh logic to complete before running queries.
+    if (!firestore || !isTokenRefreshed) return null;
     return collection(firestore, 'courses');
-  }, [firestore]);
+  }, [firestore, isTokenRefreshed]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
   const sevenDaysAgo = startOfDay(subDays(new Date(), 6));
   const attemptsQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null; // Only fetch if admin
+    // Wait for token refresh logic to complete before running queries.
+    if (!firestore || !isAdmin || !isTokenRefreshed) return null;
     return query(
       collection(firestore, 'attempts'),
       where('timestamp', '>=', sevenDaysAgo),
       orderBy('timestamp', 'desc')
     );
-  }, [firestore, isAdmin]);
+  }, [firestore, isAdmin, isTokenRefreshed]);
   const { data: recentAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
   const recentUsersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null; // Only fetch if admin
+    // Wait for token refresh logic to complete before running queries.
+    if (!firestore || !isAdmin || !isTokenRefreshed) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'desc'), limit(5));
-  }, [firestore, isAdmin]);
+  }, [firestore, isAdmin, isTokenRefreshed]);
   const { data: recentUsers, isLoading: recentUsersLoading, error: usersError } = useCollection<UserProfile>(recentUsersQuery);
   
   // Process data for chart
@@ -115,7 +138,7 @@ export default function DashboardPage() {
   const totalPasses = recentAttempts?.filter(a => a.pass).length ?? 0;
   const overallPassRate = recentAttempts && recentAttempts.length > 0 ? (totalPasses / recentAttempts.length) * 100 : 0;
 
-  const isLoading = isAuthUserLoading || isProfileLoading || coursesLoading || (isAdmin && (recentUsersLoading || attemptsLoading));
+  const isLoading = isAuthUserLoading || isProfileLoading || !isTokenRefreshed || coursesLoading || (isAdmin && (recentUsersLoading || attemptsLoading));
 
   const stats = [
     { title: "Total Courses", value: courses?.length ?? '...', icon: BookOpen },
@@ -249,3 +272,5 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+    
