@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -34,6 +34,7 @@ const aiFormSchema = z.object({
   mcqCount: z.coerce.number().int().min(1).max(10),
   essayCount: z.coerce.number().int().min(0).max(5),
   creativity: z.number().min(0).max(1),
+  facultyCode: z.string().optional(),
 })
 
 // Schema for JSON Import
@@ -98,8 +99,9 @@ export default function AiCourseCreatorPage() {
     if (!masterCourses) return [];
     return masterCourses.flatMap(mc => 
         mc.requiredCompetencies.map(rc => ({
-            value: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`,
-            label: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`
+            value: `${rc.taCode} / ${rc.isicCode}`,
+            label: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`,
+            facultyCode: mc.facultyCode
         }))
     );
   }, [masterCourses]);
@@ -114,8 +116,19 @@ export default function AiCourseCreatorPage() {
       mcqCount: 5,
       essayCount: 1,
       creativity: 0.5,
+      facultyCode: ""
     },
   })
+  
+  const { watch, setValue } = aiForm;
+  const selectedTopic = watch('topic');
+
+  useEffect(() => {
+    const option = competencyOptions.find(opt => opt.value === selectedTopic);
+    if (option) {
+      setValue('facultyCode', option.facultyCode);
+    }
+  }, [selectedTopic, competencyOptions, setValue]);
 
   // Handler for AI course generation
   async function onAiSubmit(values: z.infer<typeof aiFormSchema>) {
@@ -140,8 +153,7 @@ export default function AiCourseCreatorPage() {
   
     try {
       const batch = writeBatch(firestore);
-      const difficulty = aiForm.getValues('difficulty');
-      const topic = aiForm.getValues('topic');
+      const { difficulty, topic, facultyCode } = aiForm.getValues();
       const courseCode = generateCourseCode(topic);
   
       const courseRef = doc(collection(firestore, "courses"));
@@ -205,6 +217,7 @@ export default function AiCourseCreatorPage() {
         difficulty: difficulty,
         competency: topic,
         courseCode: courseCode,
+        facultyCode: facultyCode,
       });
   
       await batch.commit();
@@ -352,6 +365,13 @@ export default function AiCourseCreatorPage() {
                         <FormMessage />
                       </FormItem>
                     )} />
+                     <FormField control={aiForm.control} name="facultyCode" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Faculty Code</FormLabel>
+                            <FormControl><Input placeholder="Auto-filled" {...field} readOnly /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                     )} />
                     <FormField control={aiForm.control} name="syllabus" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Syllabus</FormLabel>

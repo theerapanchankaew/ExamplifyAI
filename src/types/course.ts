@@ -6,4 +6,5 @@ export type Course = {
   competency: string;
   description?: string;
   courseCode?: string;
+  facultyCode?: string;
 };

@@ -29,6 +29,7 @@ const formSchema = z.object({
   courseCode: z.string().optional(),
   competency: z.string().min(1, 'You must select a competency.'),
   difficulty: z.enum(['Beginner', 'Intermediate', 'Expert']),
+  facultyCode: z.string().optional(),
 });
 
 export default function EditCoursePage() {
@@ -45,11 +46,11 @@ export default function EditCoursePage() {
 
   const competencyOptions = useMemo(() => {
     if (!masterCourses) return [];
-    // Flatten all required competencies from all master courses into a single array
     return masterCourses.flatMap(mc => 
         mc.requiredCompetencies.map(rc => ({
-            value: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`,
-            label: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`
+            value: `${rc.taCode} / ${rc.isicCode}`,
+            label: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`,
+            facultyCode: mc.facultyCode
         }))
     );
   }, [masterCourses]);
@@ -69,8 +70,12 @@ export default function EditCoursePage() {
       courseCode: '',
       competency: '',
       difficulty: 'Beginner',
+      facultyCode: '',
     },
   });
+
+  const { watch, setValue } = form;
+  const selectedCompetency = watch('competency');
 
   useEffect(() => {
     if (course) {
@@ -80,9 +85,17 @@ export default function EditCoursePage() {
         courseCode: course.courseCode || '',
         competency: course.competency,
         difficulty: course.difficulty,
+        facultyCode: course.facultyCode || '',
       });
     }
   }, [course, form]);
+
+  useEffect(() => {
+    const option = competencyOptions.find(opt => opt.value === selectedCompetency);
+    if (option) {
+      setValue('facultyCode', option.facultyCode);
+    }
+  }, [selectedCompetency, competencyOptions, setValue]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!courseDocRef) return;
@@ -180,29 +193,42 @@ export default function EditCoursePage() {
                     </FormItem>
                 )}
                 />
-                <FormField
+                 <FormField
                     control={form.control}
-                    name="competency"
+                    name="facultyCode"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Competency</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a competency" />
-                                </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                {competencyOptions.map(option => (
-                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <FormLabel>Faculty Code</FormLabel>
+                        <FormControl>
+                            <Input placeholder="Auto-filled" {...field} readOnly />
+                        </FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
                 />
             </div>
+             <FormField
+                control={form.control}
+                name="competency"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Competency</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a competency" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {competencyOptions.map(option => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
              <FormField
                 control={form.control}
                 name="difficulty"
