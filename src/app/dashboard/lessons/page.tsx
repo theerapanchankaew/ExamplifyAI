@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useFirestore } from '@/firebase';
 import { useCollection } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
-import { collection, doc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import type { Lesson } from '@/types/lesson';
 import type { Course } from '@/types/course';
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +61,7 @@ export default function LessonsPage() {
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [lessonToDelete, setLessonToDelete] = useState<Lesson & { courseTitle?: string } | null>(null);
+  const [courseToBulkDelete, setCourseToBulkDelete] = useState<Course & { lessonCount: number } | null>(null);
 
   const lessonsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -108,6 +109,10 @@ export default function LessonsPage() {
   const handleDeleteClick = (lesson: Lesson, course: Course) => {
     setLessonToDelete({ ...lesson, courseTitle: course.title });
   };
+  
+  const handleBulkDeleteClick = (course: Course, lessons: Lesson[]) => {
+    setCourseToBulkDelete({ ...course, lessonCount: lessons.length });
+  };
 
   const confirmDelete = async () => {
     if (!lessonToDelete || !firestore) return;
@@ -129,6 +134,37 @@ export default function LessonsPage() {
     } finally {
       setIsDeleting(false);
       setLessonToDelete(null);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!courseToBulkDelete || !firestore) return;
+    
+    const lessonsToDelete = groupedLessons[courseToBulkDelete.id]?.lessons;
+    if (!lessonsToDelete || lessonsToDelete.length === 0) return;
+    
+    setIsDeleting(true);
+    const batch = writeBatch(firestore);
+
+    lessonsToDelete.forEach(lesson => {
+        const lessonRef = doc(firestore, 'lessons', lesson.id);
+        batch.delete(lessonRef);
+    });
+    
+    try {
+        await batch.commit();
+        toast({
+            title: "All Lessons Deleted",
+            description: `All ${lessonsToDelete.length} lessons from "${courseToBulkDelete.title}" have been deleted.`,
+        });
+    } catch (e) {
+         errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `lessons in course ${courseToBulkDelete.id}`,
+            operation: 'delete',
+        }));
+    } finally {
+        setIsDeleting(false);
+        setCourseToBulkDelete(null);
     }
   };
 
@@ -170,7 +206,17 @@ export default function LessonsPage() {
                           <TableHeader>
                             <TableRow>
                               <TableHead>Lesson Title</TableHead>
-                              <TableHead className="w-[120px] text-right">Actions</TableHead>
+                              <TableHead className="w-[250px] text-right">
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleBulkDeleteClick(courseDetails, lessons)}
+                                  disabled={isDeleting}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete All Lessons
+                                </Button>
+                              </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -232,6 +278,26 @@ export default function LessonsPage() {
             <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
               {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+       <AlertDialog open={!!courseToBulkDelete} onOpenChange={(open) => !open && setCourseToBulkDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete All Lessons?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete all 
+              <span className="font-bold"> {courseToBulkDelete?.lessonCount} lessons</span> from the course
+              <span className="font-bold"> "{courseToBulkDelete?.title}"</span>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirm & Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
