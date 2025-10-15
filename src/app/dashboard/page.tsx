@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useMemoFirebase } from "@/firebase/provider"
@@ -69,9 +70,9 @@ function AdminDashboardContent() {
     const { data: recentAttempts, isLoading: attemptsLoading } = useCollection<Attempt>(attemptsQuery);
     
     const { totalPasses, overallPassRate } = useMemo(() => {
-        if (!recentAttempts) return { totalPasses: 0, overallPassRate: 0 };
+        if (!recentAttempts || recentAttempts.length === 0) return { totalPasses: 0, overallPassRate: 0 };
         const passes = recentAttempts.filter(a => a.pass).length;
-        const rate = recentAttempts.length > 0 ? (passes / recentAttempts.length) * 100 : 0;
+        const rate = (passes / recentAttempts.length) * 100;
         return { totalPasses: passes, overallPassRate: rate };
     }, [recentAttempts]);
 
@@ -301,3 +302,4 @@ export default function DashboardPage() {
       />
   );
 }
+
