@@ -30,9 +30,10 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { BookOpen, Activity, Percent, Users as UsersIcon, Loader2 } from "lucide-react"
+import { BookOpen, Activity, Percent, Users as UsersIcon, Loader2, Book } from "lucide-react"
 import type { UserProfile, Attempt } from "@/types"
 import type { Course } from '@/types/course'
+import type { Lesson } from '@/types/lesson'
 import { subDays, format, startOfDay } from 'date-fns'
 import { useState, useEffect, useMemo } from "react"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
@@ -57,6 +58,10 @@ function AdminDashboardContent() {
     const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
     const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
+    // Total Lessons
+    const lessonsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'lessons') : null, [firestore]);
+    const { data: lessons, isLoading: lessonsLoading } = useCollection<Lesson>(lessonsQuery);
+
     // Attempts and Pass Rate
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     const attemptsQuery = useMemoFirebase(() => {
@@ -73,7 +78,7 @@ function AdminDashboardContent() {
         if (!recentAttempts || recentAttempts.length === 0) return { totalPasses: 0, overallPassRate: 0 };
         const passes = recentAttempts.filter(a => a.pass).length;
         const rate = (passes / recentAttempts.length) * 100;
-        return { totalPasses: passes, overallPassRate: rate };
+        return { totalPasses: passes, overallPassRate: isNaN(rate) ? 0 : rate };
     }, [recentAttempts]);
 
     // Daily Activity Chart
@@ -124,7 +129,7 @@ function AdminDashboardContent() {
 
     return (
         <div className="flex flex-col gap-8">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                  <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Courses</CardTitle>
@@ -132,6 +137,15 @@ function AdminDashboardContent() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold font-headline">{coursesLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : courses?.length ?? 0}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Lessons</CardTitle>
+                        <Book className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold font-headline">{lessonsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : lessons?.length ?? 0}</div>
                     </CardContent>
                 </Card>
                  <Card>
@@ -242,6 +256,8 @@ export default function DashboardPage() {
   const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
   
   const [isAdminReady, setIsAdminReady] = useState(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+
   
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
@@ -252,8 +268,17 @@ export default function DashboardPage() {
   
   useEffect(() => {
     const verifyAdminStatus = async () => {
-      // Wait for auth and profile to load
-      if (!authUser || !userProfile) return;
+      // Don't do anything until both auth and profile are resolved
+      if (isAuthUserLoading || isProfileLoading) {
+        return;
+      }
+      
+      // If there's no authenticated user or no profile, they can't be an admin.
+      if (!authUser || !userProfile) {
+        setIsAdminReady(false);
+        setIsCheckingAdmin(false);
+        return;
+      }
 
       // Check if user is an admin based on Firestore profile
       if (userProfile.role === 'admin') {
@@ -273,15 +298,16 @@ export default function DashboardPage() {
         // Not an admin
         setIsAdminReady(false);
       }
+      // Finished all checks
+      setIsCheckingAdmin(false);
     };
     
     verifyAdminStatus();
 
-  }, [authUser, userProfile]);
+  }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
 
-  const isLoading = isAuthUserLoading || isProfileLoading;
   
-  if (isLoading) {
+  if (isCheckingAdmin) {
     return (
       <div className="flex h-full min-h-[80vh] items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
