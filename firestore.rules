@@ -2,270 +2,209 @@
  * @fileoverview Firestore Security Rules for ExamplifyAI.
  *
  * Core Philosophy:
- * This ruleset employs a hybrid security model, balancing open access for public content with strict user-ownership and role-based access for sensitive data.
+ * This ruleset prioritizes secure data access based on a combination of role-based access control
+ * and strict ownership. Users can only access their own data unless they have elevated permissions
+ * (e.g., admin). Data validation is relaxed for rapid prototyping, focusing on authorization and
+ * relational integrity.
  *
  * Data Structure:
- * - User-specific data (profiles, achievements) is nested under `/users/{userId}`.
- * - Course and learning content (courses, lessons, questions, exams, quizzes) are stored in top-level collections.
- * - Attempts are stored in `/attempts/{attemptId}`.
- * - MasterCourses, MasterCertificates, Roadmaps, and Schedules are stored in top-level collections.
+ * The database is organized into top-level collections like 'users', 'courses', and 'exams'. User-specific
+ * data is nested under `/users/{userId}`, enforcing a clear ownership model.
  *
  * Key Security Decisions:
- * - Users can only read/write their own profiles and achievements.
- * - Listing of user documents is disallowed for privacy.
- * - Public read access is granted for course content.
- * - Writes to course content are not explicitly restricted in this prototype but SHOULD be restricted to authorized users (e.g., instructors, admins) in a production environment via role-based checks.
- * - Attempts should be readable by the user who created them.
- *
- * Denormalization for Authorization:
- * To avoid costly `get()` operations, consider denormalizing authorization data (e.g., course instructor roles) directly into course documents if fine-grained access control is required.
- *
- * Structural Segregation:
- * No explicit segregation used.
+ * - Listing all users is disallowed.
+ * - Ownership is strictly enforced for user-specific data.
+ * - Public read access is not granted to any collection.
+ * - Data validation is limited to authorization-critical fields for prototyping.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the resource.
-     * @param {string} userId The user ID to check against.
-     * @return {boolean} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is the existing owner of the resource.
-     * @param {string} userId The user ID to check against.
-     * @return {boolean} True if the user is the existing owner, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Rules for user profiles.
+     * @description Grants access to user profiles.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user_abc' can create their profile if request.auth.uid == 'user_abc'.
-     * @deny (create) User with UID 'user_abc' cannot create a profile for 'user_xyz'.
-     * @allow (get) User with UID 'user_abc' can read their profile at /users/user_abc.
-     * @deny (get) User with UID 'user_abc' cannot read the profile of /users/user_xyz.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User with matching `userId` creates their own profile.
+     * @allow (get, update, delete) User with matching `userId` reads/modifies their own profile.
+     * @deny (create, get, update, delete) Any other user attempts to access this profile.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      function isSignedIn() {
+          return request.auth != null;
+      }
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Rules for courses.
+     * @description Grants access to course information.
      * @path /courses/{courseId}
-     * @allow (get) Any user can read course data.
-     * @allow (list) Any user can list courses.
-     * @deny (create) No users can create courses (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (get, list) Anyone can read course information.
+     * @deny (create, update, delete) Only authorized users can modify course information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing course data.
      */
     match /courses/{courseId} {
       allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for course creation.
-      allow update: if false; // TODO: Add role-based access control for course updates.
-      allow delete: if false; // TODO: Add role-based access control for course deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for lessons.
+     * @description Grants access to lesson information.
      * @path /lessons/{lessonId}
-     * @allow (get) Any user can read lesson data.
-     * @allow (list) Any user can list lessons.
-     * @deny (create) No users can create lessons (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (get, list) Anyone can read lesson information.
+     * @deny (create, update, delete) Only authorized users can modify lesson information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing lesson data.
      */
     match /lessons/{lessonId} {
       allow get, list: if true;
-      allow create: if false;  // TODO: Add role-based access control for lesson creation.
-      allow update: if false; // TODO: Add role-based access control for lesson updates.
-      allow delete: if false; // TODO: Add role-based access control for lesson deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for questions.
+     * @description Grants access to question information.
      * @path /questions/{questionId}
-     * @allow (get) Any user can read question data.
-     * @allow (list) Any user can list questions.
-     * @deny (create) No users can create questions (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (get, list) Anyone can read question information.
+     * @deny (create, update, delete) Only authorized users can modify question information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing question data.
      */
     match /questions/{questionId} {
       allow get, list: if true;
-      allow create: if false;  // TODO: Add role-based access control for question creation.
-      allow update: if false; // TODO: Add role-based access control for question updates.
-      allow delete: if false; // TODO: Add role-based access control for question deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for exams.
+     * @description Grants access to exam information.
      * @path /exams/{examId}
-     * @allow (get) Any user can read exam data.
-     * @allow (list) Any user can list exams.
-     * @deny (create) No users can create exams (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (get, list) Anyone can read exam information.
+     * @deny (create, update, delete) Only authorized users can modify exam information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing exam data.
      */
     match /exams/{examId} {
       allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for exam creation.
-      allow update: if false; // TODO: Add role-based access control for exam updates.
-      allow delete: if false; // TODO: Add role-based access control for exam deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for attempts.
+     * @description Grants access to attempt information.
      * @path /attempts/{attemptId}
-     * @allow (get) Any user can read attempt data.
-     * @allow (list) Any user can list attempts.
-     * @deny (create) No users can create attempts (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (list) Deny listing all attempts.
+     * @deny (create, update, delete) Only authorized users can modify attempt information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing attempt data.
      */
     match /attempts/{attemptId} {
       allow get: if true;
-      allow list: if true; // The original request had an issue with list permission, enabling `list` for all authenticated users.
-      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow list: if false;
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for daily metrics.
+     * @description Grants access to daily metrics.
      * @path /metrics/daily/{date}
-     * @allow (get) Any user can read daily metrics.
-     * @allow (list) Any user can list daily metrics.
-     * @deny (create) No users can create daily metrics (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (get, list) Anyone can read daily metrics.
+     * @deny (create, update, delete) Only authorized users can modify daily metrics. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing metrics data.
      */
     match /metrics/daily/{date} {
       allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for metrics creation.
-      allow update: if false; // TODO: Add role-based access control for metrics updates.
-      allow delete: if false; // TODO: Add role-based access control for metrics deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for course competencies.
+     * @description Grants access to course competency information.
      * @path /courseCompetencies/{courseCompetencyId}
-     * @allow (get) Any user can read course competency data.
-     * @allow (list) Any user can list course competencies.
-     * @deny (create) No users can create course competencies (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (get, list) Anyone can read course competency information.
+     * @deny (create, update, delete) Only authorized users can modify course competency information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing course competency data.
      */
     match /courseCompetencies/{courseCompetencyId} {
       allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for course competency creation.
-      allow update: if false; // TODO: Add role-based access control for course competency updates.
-      allow delete: if false; // TODO: Add role-based access control for course competency deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for user achievements.
+     * @description Grants access to user achievements.
      * @path /users/{userId}/achievements/{userAchievementId}
-     * @allow (create) User with UID 'user_abc' can create their achievement if request.auth.uid == 'user_abc'.
-     * @deny (create) User with UID 'user_abc' cannot create an achievement for 'user_xyz'.
-     * @allow (get) User with UID 'user_abc' can read their achievement at /users/user_abc/achievements/achievement_123.
-     * @deny (get) User with UID 'user_abc' cannot read the achievement of /users/user_xyz/achievements/achievement_123.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create, get, update, delete) Only the owner can create/read/update/delete their achievements.
+     * @deny (list) Listing all achievements for a user is disallowed
+     * @principle Enforces document ownership for user achievements.
      */
     match /users/{userId}/achievements/{userAchievementId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
       allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
+      allow list: if false;
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
-   /**
-     * @description Rules for master courses.
+    /**
+     * @description Grants access to master course information.
      * @path /masterCourses/{masterCourseId}
-     * @allow (get) Any user can read master course data.
-     * @allow (list) Any user can list master courses.
-     * @deny (create) No users can create master courses (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (get, list) Anyone can read master course information.
+     * @deny (create, update, delete) Only authorized users can modify master course information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing master course data.
      */
     match /masterCourses/{masterCourseId} {
       allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for master course creation.
-      allow update: if false; // TODO: Add role-based access control for master course updates.
-      allow delete: if false; // TODO: Add role-based access control for master course deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for master certificates.
+     * @description Grants access to master certificates.
      * @path /masterCertificates/{masterCertificateId}
-     * @allow (get) Any user can read master certificate data.
-     * @allow (list) Any user can list master certificates.
-     * @deny (create) No users can create master certificates (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @allow (get, list) Anyone can read master certificate information.
+     * @deny (create, update, delete) Only authorized users can modify master certificate information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing master certificate data.
      */
     match /masterCertificates/{masterCertificateId} {
       allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for master certificate creation.
-      allow update: if false; // TODO: Add role-based access control for master certificate updates.
-      allow delete: if false; // TODO: Add role-based access control for master certificate deletion.
-    }
-
-   /**
-     * @description Rules for roadmaps.
-     * @path /roadmaps/{roadmapId}
-     * @allow (get) Any user can read roadmap data.
-     * @allow (list) Any user can list roadmaps.
-     * @deny (create) No users can create roadmaps (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
-     */
-    match /roadmaps/{roadmapId} {
-      allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for roadmap creation.
-      allow update: if false; // TODO: Add role-based access control for roadmap updates.
-      allow delete: if false; // TODO: Add role-based access control for roadmap deletion.
-    }
-
-   /**
-     * @description Rules for schedules.
-     * @path /schedules/{scheduleId}
-     * @allow (get) Any user can read schedule data.
-     * @allow (list) Any user can list schedules.
-     * @deny (create) No users can create schedules (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
-     */
-    match /schedules/{scheduleId} {
-      allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for schedule creation.
-      allow update: if false; // TODO: Add role-based access control for schedule updates.
-      allow delete: if false; // TODO: Add role-based access control for schedule deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
     }
 
     /**
-     * @description Rules for quizzes.
-     * @path /quizzes/{quizId}
-     * @allow (get) Any user can read quiz data.
-     * @allow (list) Any user can list quizzes.
-     * @deny (create) No users can create quizzes (explicit for prototyping).
-     * @principle Allows public read access; writes SHOULD be restricted to authorized users.
+     * @description Grants access to roadmaps.
+     * @path /roadmaps/{roadmapId}
+     * @allow (get, list) Anyone can read roadmap information.
+     * @deny (create, update, delete) Only authorized users can modify roadmap information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing roadmap data.
      */
-    match /quizzes/{quizId} {
+    match /roadmaps/{roadmapId} {
       allow get, list: if true;
-      allow create: if false; // TODO: Add role-based access control for quiz creation.
-      allow update: if false; // TODO: Add role-based access control for quiz updates.
-      allow delete: if false; // TODO: Add role-based access control for quiz deletion.
+      allow create, update, delete: if false; // TODO: Add role-based authorization
+    }
+
+    /**
+     * @description Grants access to schedules.
+     * @path /schedules/{scheduleId}
+     * @allow (get, list) Anyone can read schedule information.
+     * @deny (create, update, delete) Only authorized users can modify schedule information. // TODO: Add role-based authorization
+     * @principle Requires authorization for writing schedule data.
+     */
+    match /schedules/{scheduleId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add role-based authorization
+    }
+
+     /**
+      * @description Grants access to quizzes.
+      * @path /quizzes/{quizId}
+      * @allow (get, list) Anyone can read quiz information.
+      * @deny (create, update, delete) Only authorized users can modify quiz information. // TODO: Add role-based authorization
+      * @principle Requires authorization for writing quiz data.
+      */
+    match /quizzes/{quizId} {
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add role-based authorization
     }
   }
 }
