@@ -66,11 +66,12 @@ export default function EditModulePage() {
     if (!moduleDocRef) return;
 
     setIsSaving(true);
-    try {
-      await updateDoc(moduleDocRef, {
+    const updateData = {
         ...values,
         updatedAt: serverTimestamp(),
-      });
+    };
+    try {
+      await updateDoc(moduleDocRef, updateData);
       toast({
         title: 'Module Updated',
         description: `"${values.title}" has been saved successfully.`,
@@ -80,7 +81,7 @@ export default function EditModulePage() {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: moduleDocRef.path,
             operation: 'update',
-            requestResourceData: values,
+            requestResourceData: updateData,
         }));
     } finally {
       setIsSaving(false);
@@ -113,7 +114,7 @@ export default function EditModulePage() {
     <Card className="max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle>Edit Module</CardTitle>
-        <CardDescription>Change the module title. Chapters are managed separately.</CardDescription>
+        <CardDescription>Change the module title and review its chapters.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -133,13 +134,15 @@ export default function EditModulePage() {
             />
 
             <div className='space-y-4 pt-4'>
-                <h3 className='text-lg font-semibold'>Chapters in this Module</h3>
+                <h3 className='text-base font-semibold'>Chapters in this Module</h3>
                 {chapters && chapters.length > 0 ? (
-                    <ul className='list-disc pl-5 space-y-2'>
-                        {chapters.map(chapter => (
-                            <li key={chapter.id}>{chapter.title}</li>
-                        ))}
-                    </ul>
+                    <div className="rounded-md border p-4">
+                        <ul className='list-disc pl-5 space-y-2 text-sm'>
+                            {chapters.map(chapter => (
+                                <li key={chapter.id}>{chapter.title}</li>
+                            ))}
+                        </ul>
+                    </div>
                 ): (
                     <p className='text-sm text-muted-foreground'>No chapters found for this module.</p>
                 )}
