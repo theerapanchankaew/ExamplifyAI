@@ -1,11 +1,9 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, useUser, useDoc } from '@/firebase';
-import { useCollection } from '@/firebase';
-import { useMemoFirebase } from '@/firebase/provider';
+import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, deleteDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/types';
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +50,9 @@ export default function UsersPage() {
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
 
   // First, get the current user's profile to check if they are an admin
@@ -61,7 +62,18 @@ export default function UsersPage() {
   }, [firestore, authUser]);
   const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const isAdmin = currentUserProfile?.role === 'admin';
+  useEffect(() => {
+    if (isAuthUserLoading || isProfileLoading) {
+      return;
+    }
+    
+    if (currentUserProfile?.role === 'admin') {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
+    }
+    setIsCheckingAdmin(false);
+  }, [currentUserProfile, isAuthUserLoading, isProfileLoading]);
 
   // Only attempt to fetch all users if the current user is confirmed to be an admin
   const usersQuery = useMemoFirebase(() => {
@@ -69,9 +81,9 @@ export default function UsersPage() {
     return collection(firestore, 'users');
   }, [firestore, isAdmin]);
 
-  const { data: users, isLoading: usersIsLoading, error: usersError } = useCollection<UserProfile>(usersQuery);
+  const { data: users, isLoading: usersIsLoading } = useCollection<UserProfile>(usersQuery);
 
-  const isLoading = isAuthUserLoading || isProfileLoading || (isAdmin && usersIsLoading);
+  const isLoading = isCheckingAdmin || (isAdmin && usersIsLoading);
 
   const getAvatarForUser = (user: UserProfile, index: number) => {
     const imageId = user.role === 'admin' ? 'user-avatar-1' : `student-avatar-${(index % 1) + 1}`;
