@@ -29,12 +29,6 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion"
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -46,21 +40,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, BookCopy, Edit, Trash2, Book } from 'lucide-react';
+import { Loader2, BookCopy, Edit, Trash2 } from 'lucide-react';
 
 type EnrichedLesson = Lesson & {
   courseTitle?: string;
   courseDifficulty?: string;
   courseCompetency?: string;
-  courseCode?: string;
 };
-
-type GroupedCourses = {
-    [courseId: string]: {
-        course: Course;
-        lessons: EnrichedLesson[];
-    }
-}
 
 export default function LessonsPage() {
   const firestore = useFirestore();
@@ -80,32 +66,21 @@ export default function LessonsPage() {
     return collection(firestore, 'courses');
   }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
-
-  const groupedCourses = useMemo<GroupedCourses>(() => {
-    if (!lessons || !courses) return {};
+  
+  const enrichedLessons = useMemo<EnrichedLesson[]>(() => {
+    if (!lessons || !courses) return [];
 
     const coursesMap = new Map(courses.map(c => [c.id, c]));
-    const result: GroupedCourses = {};
-
-    lessons.forEach(lesson => {
-        const course = coursesMap.get(lesson.courseId);
-        if (course) {
-            if (!result[lesson.courseId]) {
-                result[lesson.courseId] = {
-                    course: course,
-                    lessons: []
-                };
-            }
-            result[lesson.courseId].lessons.push({
-                ...lesson,
-                courseTitle: course.title,
-                courseDifficulty: course.difficulty,
-                courseCompetency: course.competency,
-                courseCode: course.courseCode,
-            });
-        }
-    });
-    return result;
+    
+    return lessons.map(lesson => {
+      const course = coursesMap.get(lesson.courseId);
+      return {
+        ...lesson,
+        courseTitle: course?.title || 'N/A',
+        courseDifficulty: course?.difficulty,
+        courseCompetency: course?.competency,
+      };
+    }).sort((a, b) => (a.courseTitle || '').localeCompare(b.courseTitle || ''));
   }, [lessons, courses]);
 
   const isLoading = lessonsLoading || coursesLoading;
@@ -147,7 +122,7 @@ export default function LessonsPage() {
         <CardHeader>
           <CardTitle>Lessons Management</CardTitle>
           <CardDescription>
-            Manage all lessons, grouped by course. Each lesson acts as a micro-learning module.
+            Manage all lessons in the system. Each lesson acts as a micro-learning module.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -155,54 +130,55 @@ export default function LessonsPage() {
             <div className="flex h-64 items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : Object.keys(groupedCourses).length > 0 ? (
-            <Accordion type="multiple" className="w-full space-y-4">
-                {Object.values(groupedCourses).map(({ course, lessons }) => (
-                    <AccordionItem value={course.id} key={course.id} className="border-b-0 rounded-lg border bg-card text-card-foreground shadow-sm">
-                        <AccordionTrigger className="p-6 hover:no-underline">
-                           <div className='flex flex-col text-left'>
-                                <div className='flex items-center gap-4'>
-                                    <h3 className="text-lg font-semibold">{course.title}</h3>
-                                    <Badge variant="outline">{course.courseCode}</Badge>
-                                </div>
-                                <p className='text-sm text-muted-foreground mt-1'>{lessons.length} {lessons.length === 1 ? 'module' : 'modules'}</p>
-                           </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                           <div className="overflow-x-auto border-t">
-                             <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Module Title</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {lessons.map((lesson) => (
-                                        <TableRow key={lesson.id}>
-                                            <TableCell className="font-medium flex items-center gap-2">
-                                                <Book className="h-4 w-4 text-muted-foreground"/>
-                                                {lesson.title}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" onClick={() => handleEditClick(lesson.id)}>
-                                                    <Edit className="h-4 w-4" />
-                                                    <span className="sr-only">Edit</span>
-                                                </Button>
-                                                 <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(lesson)} className="text-destructive hover:text-destructive">
-                                                    <Trash2 className="h-4 w-4" />
-                                                    <span className="sr-only">Delete</span>
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                             </Table>
-                           </div>
-                        </AccordionContent>
-                    </AccordionItem>
-                ))}
-            </Accordion>
+          ) : enrichedLessons.length > 0 ? (
+             <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[120px]">Lesson ID</TableHead>
+                    <TableHead>Lesson Title</TableHead>
+                    <TableHead>Course Title</TableHead>
+                    <TableHead>Competency</TableHead>
+                    <TableHead>Difficulty</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {enrichedLessons.map((lesson) => (
+                    <TableRow key={lesson.id}>
+                      <TableCell className="font-mono text-xs truncate">{lesson.id}</TableCell>
+                      <TableCell className="font-medium">{lesson.title}</TableCell>
+                      <TableCell className="text-muted-foreground">{lesson.courseTitle}</TableCell>
+                      <TableCell>
+                        {lesson.courseCompetency && <Badge variant="outline">{lesson.courseCompetency}</Badge>}
+                      </TableCell>
+                       <TableCell>
+                        {lesson.courseDifficulty && <Badge variant="secondary">{lesson.courseDifficulty}</Badge>}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleEditClick(lesson.id)}
+                         >
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Edit Lesson</span>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleDeleteClick(lesson)}
+                          className="text-destructive hover:text-destructive"
+                         >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete Lesson</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed">
                 <div className="text-center text-muted-foreground">
@@ -220,7 +196,7 @@ export default function LessonsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the module
+              This action cannot be undone. This will permanently delete the lesson
               <span className="font-bold"> "{lessonToDelete?.title}"</span> from the course
               <span className="font-bold"> "{lessonToDelete?.courseTitle}"</span>.
             </AlertDialogDescription>
