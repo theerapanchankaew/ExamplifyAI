@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -122,10 +123,7 @@ export default function ChaptersPage() {
   };
 
   const handleEditClick = (chapterId: string) => {
-     toast({
-        title: "Edit Not Implemented",
-        description: "Editing chapters will be available in a future update.",
-    });
+    router.push(`/dashboard/chapters/edit/${chapterId}`);
   };
 
   return (
@@ -169,7 +167,6 @@ export default function ChaptersPage() {
                                     variant="ghost" 
                                     size="icon" 
                                     onClick={() => handleEditClick(chapter.id)}
-                                    disabled
                                   >
                                     <Edit className="h-4 w-4" />
                                     <span className="sr-only">Edit Chapter</span>
