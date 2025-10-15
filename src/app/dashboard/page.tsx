@@ -62,7 +62,7 @@ function TotalCoursesStat() {
         <BookOpen className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold font-headline">{isLoading ? '...' : courses?.length ?? 0}</div>
+        <div className="text-2xl font-bold font-headline">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : courses?.length ?? 0}</div>
       </CardContent>
     </Card>
   );
@@ -70,21 +70,25 @@ function TotalCoursesStat() {
 
 function AttemptsAndPassRateStats() {
     const firestore = useFirestore();
-    const sevenDaysAgo = startOfDay(subDays(new Date(), 6));
+    const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
 
     const attemptsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return query(
-        collection(firestore, 'attempts'),
-        where('timestamp', '>=', sevenDaysAgo),
-        orderBy('timestamp', 'desc')
+            collection(firestore, 'attempts'),
+            where('timestamp', '>=', sevenDaysAgo),
+            orderBy('timestamp', 'desc')
         );
     }, [firestore, sevenDaysAgo]);
 
     const { data: recentAttempts, isLoading } = useCollection<Attempt>(attemptsQuery);
     
-    const totalPasses = recentAttempts?.filter(a => a.pass).length ?? 0;
-    const overallPassRate = recentAttempts && recentAttempts.length > 0 ? (totalPasses / recentAttempts.length) * 100 : 0;
+    const { totalPasses, overallPassRate } = useMemo(() => {
+        if (!recentAttempts) return { totalPasses: 0, overallPassRate: 0 };
+        const passes = recentAttempts.filter(a => a.pass).length;
+        const rate = recentAttempts.length > 0 ? (passes / recentAttempts.length) * 100 : 0;
+        return { totalPasses: passes, overallPassRate: rate };
+    }, [recentAttempts]);
 
     return (
         <>
@@ -94,7 +98,7 @@ function AttemptsAndPassRateStats() {
                 <Activity className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                <div className="text-2xl font-bold font-headline">{isLoading ? '...' : recentAttempts?.length ?? 0}</div>
+                <div className="text-2xl font-bold font-headline">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : recentAttempts?.length ?? 0}</div>
                 </CardContent>
             </Card>
             <Card>
@@ -103,7 +107,7 @@ function AttemptsAndPassRateStats() {
                 <Percent className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                <div className="text-2xl font-bold font-headline">{isLoading ? '...' : `${overallPassRate.toFixed(1)}%`}</div>
+                <div className="text-2xl font-bold font-headline">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `${overallPassRate.toFixed(1)}%`}</div>
                 </CardContent>
             </Card>
         </>
@@ -112,7 +116,8 @@ function AttemptsAndPassRateStats() {
 
 function DailyActivityChart() {
     const firestore = useFirestore();
-    const sevenDaysAgo = startOfDay(subDays(new Date(), 6));
+    const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
+
 
     const attemptsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -260,12 +265,31 @@ function RecentUsersCard() {
     );
 }
 
+function AdminDashboardContent() {
+    return (
+        <div className="flex flex-col gap-8">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <TotalCoursesStat />
+                <AttemptsAndPassRateStats />
+            </div>
+            <div className="grid gap-4 xl:grid-cols-2">
+                <DailyActivityChart />
+                <RecentUsersCard />
+            </div>
+        </div>
+    );
+}
+
 // #endregion
 
 export default function DashboardPage() {
   const firestore = useFirestore();
   const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
   
+  // This state will gate the rendering of admin-only components
+  const [isAdminReady, setIsAdminReady] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
     return doc(firestore, 'users', authUser.uid);
@@ -273,9 +297,6 @@ export default function DashboardPage() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
   
-  // This state will gate the rendering of admin-only components
-  const [isAdminReady, setIsAdminReady] = useState(false);
-
   useEffect(() => {
     // This effect runs once after the user and their profile are loaded.
     // It checks for admin role and ensures the auth token has the correct custom claims.
@@ -283,6 +304,8 @@ export default function DashboardPage() {
       if (isAuthUserLoading || isProfileLoading) {
         return; // Wait until user and profile are loaded
       }
+
+      setAuthChecked(true); // Mark that we've completed the initial load.
 
       if (!authUser || !userProfile) {
         setIsAdminReady(false); // Not logged in or no profile, not an admin
@@ -307,7 +330,8 @@ export default function DashboardPage() {
 
   }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
 
-  const isLoading = isAuthUserLoading || isProfileLoading;
+  // Combined loading state
+  const isLoading = isAuthUserLoading || isProfileLoading || !authChecked;
   
   if (isLoading) {
     return (
@@ -327,19 +351,7 @@ export default function DashboardPage() {
   }
 
   // Render the admin dashboard only when isAdminReady is true
-  return (
-    <div className="flex flex-col gap-8">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <TotalCoursesStat />
-        <AttemptsAndPassRateStats />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <DailyActivityChart />
-        <RecentUsersCard />
-      </div>
-    </div>
-  )
+  return <AdminDashboardContent />;
 }
 
     
