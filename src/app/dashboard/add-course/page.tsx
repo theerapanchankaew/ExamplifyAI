@@ -7,12 +7,13 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { generateCourseFromTopic, GenerateCourseFromTopicOutput } from "@/ai/flows/generate-course-from-topic"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from "@/firebase"
 import { collection, writeBatch, doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import type { MasterCourse } from "@/types/master-course"
+import type { UserProfile } from "@/types"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -25,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Loader2, Save, Wand2, Upload, FileJson } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PlaceholderContent } from "@/components/placeholder-content"
 
 // Schema for AI Generation Form
 const aiFormSchema = z.object({
@@ -77,7 +79,7 @@ function generateCourseCode(topic: string): string {
   return code.substring(0, 10) || 'COURSE';
 }
 
-export default function AiCourseCreatorPage() {
+function AiCourseCreatorContent() {
   // State for AI Generation
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -93,7 +95,7 @@ export default function AiCourseCreatorPage() {
   const { toast } = useToast();
 
   const masterCoursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'masterCourses') : null, [firestore]);
-  const { data: masterCourses, isLoading: masterCoursesLoading } = useCollection<MasterCourse>(masterCoursesQuery);
+  const { data: masterCourses, isLoading: masterCoursesLoading, error: masterCoursesError } = useCollection<MasterCourse>(masterCoursesQuery);
 
   const competencyOptions = useMemo(() => {
     if (!masterCourses) return [];
@@ -353,10 +355,11 @@ export default function AiCourseCreatorPage() {
                           <Select onValueChange={field.onChange} defaultValue={field.value} disabled={masterCoursesLoading}>
                               <FormControl>
                                   <SelectTrigger>
-                                      <SelectValue placeholder={masterCoursesLoading ? "Loading competencies..." : "Select a competency"} />
+                                      <SelectValue placeholder={masterCoursesLoading ? "Loading..." : "Select a competency"} />
                                   </SelectTrigger>
                               </FormControl>
                               <SelectContent>
+                                  {masterCoursesError && <SelectItem value="error" disabled>Error loading competencies</SelectItem>}
                                   {competencyOptions.map(option => (
                                       <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                                   ))}
@@ -543,3 +546,69 @@ export default function AiCourseCreatorPage() {
     </Tabs>
   )
 }
+
+export default function AiCourseCreatorPage() {
+  const firestore = useFirestore();
+  const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
+  const [isAdminReady, setIsAdminReady] = useState(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !authUser) return null;
+    return doc(firestore, 'users', authUser.uid);
+  }, [firestore, authUser]);
+
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+
+  useEffect(() => {
+    const verifyAdminStatus = async () => {
+      if (isAuthUserLoading || isProfileLoading) {
+        return; 
+      }
+      
+      if (!authUser || !userProfile) {
+        setIsAdminReady(false);
+        setIsCheckingAdmin(false);
+        return;
+      }
+
+      if (userProfile.role === 'admin') {
+        try {
+          const tokenResult = await authUser.getIdTokenResult();
+          if (tokenResult.claims.role !== 'admin') {
+            await authUser.getIdToken(true);
+          }
+          setIsAdminReady(true);
+        } catch (error) {
+          console.error("Error verifying admin token:", error);
+          setIsAdminReady(false);
+        }
+      } else {
+        setIsAdminReady(false);
+      }
+      setIsCheckingAdmin(false);
+    };
+    
+    verifyAdminStatus();
+  }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
+
+  if (isCheckingAdmin) {
+    return (
+      <div className="flex h-full min-h-[80vh] items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isAdminReady) {
+    return <AiCourseCreatorContent />;
+  }
+
+  return (
+    <PlaceholderContent 
+      title="Access Denied" 
+      description="You do not have permission to view this page."
+    />
+  );
+}
+
