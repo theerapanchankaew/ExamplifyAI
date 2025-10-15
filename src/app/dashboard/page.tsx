@@ -241,8 +241,7 @@ export default function DashboardPage() {
   const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
   
   const [isAdminReady, setIsAdminReady] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-
+  
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
     return doc(firestore, 'users', authUser.uid);
@@ -252,28 +251,43 @@ export default function DashboardPage() {
   
   useEffect(() => {
     const verifyAdminStatus = async () => {
+      // Wait until we have both the auth user and their profile
+      if (isAuthUserLoading || isProfileLoading) {
+        return;
+      }
+      
+      // If there's no authenticated user or no profile, they can't be an admin.
       if (!authUser || !userProfile) {
-        if (!isAuthUserLoading && !isProfileLoading) {
-            setAuthChecked(true);
-        }
+        setIsAdminReady(false);
         return;
       }
 
+      // Check if the user has the 'admin' role in their profile
       if (userProfile.role === 'admin') {
-        const tokenResult = await authUser.getIdTokenResult();
-        if (tokenResult.claims.role !== 'admin') {
-          await authUser.getIdToken(true);
+        try {
+          const tokenResult = await authUser.getIdTokenResult();
+          // If the token from the client doesn't have the admin claim, force a refresh.
+          if (tokenResult.claims.role !== 'admin') {
+            await authUser.getIdToken(true); // Force refresh
+          }
+          // Now the token is refreshed and they are ready.
+          setIsAdminReady(true);
+        } catch (error) {
+          console.error("Error refreshing admin token:", error);
+          setIsAdminReady(false); // Stay not-ready if token refresh fails
         }
-        setIsAdminReady(true);
+      } else {
+        // If profile role is not admin, they are not ready.
+        setIsAdminReady(false);
       }
-      setAuthChecked(true);
     };
     
     verifyAdminStatus();
 
   }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
 
-  const isLoading = isAuthUserLoading || isProfileLoading || !authChecked;
+  // Combined loading state
+  const isLoading = isAuthUserLoading || isProfileLoading;
   
   if (isLoading) {
     return (
@@ -294,5 +308,3 @@ export default function DashboardPage() {
 
   return <AdminDashboardContent />;
 }
-
-    
