@@ -1,8 +1,8 @@
 import { config } from 'dotenv';
 config();
 
-import '@/ai/flows/grade-essay-with-ai.ts';
-import '@/ai/flows/generate-course-from-topic.ts';
+// This script should be run manually via `npm run set-admin`
+// It is NOT part of the Genkit flow server.
 import { setAdminClaim } from '@/ai/actions/set-admin-claim';
 
 async function runAdminActions() {
