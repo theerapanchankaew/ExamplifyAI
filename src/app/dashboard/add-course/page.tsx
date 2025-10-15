@@ -2,16 +2,17 @@
 
 'use client'
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { generateCourseFromTopic, GenerateCourseFromTopicOutput } from "@/ai/flows/generate-course-from-topic"
-import { useFirestore } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, writeBatch, doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import type { MasterCourse } from "@/types/master-course"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -27,7 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Schema for AI Generation Form
 const aiFormSchema = z.object({
-  topic: z.string().min(3, "Topic must be at least 3 characters long."),
+  topic: z.string().min(1, "You must select a competency."),
   syllabus: z.string().min(10, "Syllabus must be at least 10 characters long."),
   difficulty: z.enum(['Beginner', 'Intermediate', 'Expert']),
   mcqCount: z.coerce.number().int().min(1).max(10),
@@ -89,6 +90,20 @@ export default function AiCourseCreatorPage() {
 
   const firestore = useFirestore();
   const { toast } = useToast();
+
+  const masterCoursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'masterCourses') : null, [firestore]);
+  const { data: masterCourses, isLoading: masterCoursesLoading } = useCollection<MasterCourse>(masterCoursesQuery);
+
+  const competencyOptions = useMemo(() => {
+    if (!masterCourses) return [];
+    return masterCourses.flatMap(mc => 
+        mc.requiredCompetencies.map(rc => ({
+            value: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`,
+            label: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`
+        }))
+    );
+  }, [masterCourses]);
+
 
   const aiForm = useForm<z.infer<typeof aiFormSchema>>({
     resolver: zodResolver(aiFormSchema),
@@ -322,7 +337,18 @@ export default function AiCourseCreatorPage() {
                     <FormField control={aiForm.control} name="topic" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Topic / Competency</FormLabel>
-                        <FormControl><Input placeholder="e.g., ISO 9001 Quality Management" {...field} /></FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value} disabled={masterCoursesLoading}>
+                              <FormControl>
+                                  <SelectTrigger>
+                                      <SelectValue placeholder={masterCoursesLoading ? "Loading competencies..." : "Select a competency"} />
+                                  </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                  {competencyOptions.map(option => (
+                                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                  ))}
+                              </SelectContent>
+                          </Select>
                         <FormMessage />
                       </FormItem>
                     )} />
@@ -497,5 +523,3 @@ export default function AiCourseCreatorPage() {
     </Tabs>
   )
 }
-
-    

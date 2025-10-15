@@ -1,10 +1,11 @@
 
+
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, updateDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -18,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Course } from '@/types/course';
+import type { MasterCourse } from '@/types/master-course';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -25,7 +27,7 @@ const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long.'),
   description: z.string().optional(),
   courseCode: z.string().optional(),
-  competency: z.string().min(3, 'Competency must be at least 3 characters long.'),
+  competency: z.string().min(1, 'You must select a competency.'),
   difficulty: z.enum(['Beginner', 'Intermediate', 'Expert']),
 });
 
@@ -36,6 +38,21 @@ export default function EditCoursePage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+
+  // Fetch Master Courses for competency dropdown
+  const masterCoursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'masterCourses') : null, [firestore]);
+  const { data: masterCourses, isLoading: masterCoursesLoading } = useCollection<MasterCourse>(masterCoursesQuery);
+
+  const competencyOptions = useMemo(() => {
+    if (!masterCourses) return [];
+    // Flatten all required competencies from all master courses into a single array
+    return masterCourses.flatMap(mc => 
+        mc.requiredCompetencies.map(rc => ({
+            value: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`,
+            label: `[${mc.facultyCode}] ${rc.taCode} / ${rc.isicCode}`
+        }))
+    );
+  }, [masterCourses]);
 
   const courseDocRef = useMemoFirebase(() => {
     if (!firestore || !courseId) return null;
@@ -92,7 +109,9 @@ export default function EditCoursePage() {
     }
   }
 
-  if (isCourseLoading) {
+  const isLoading = isCourseLoading || masterCoursesLoading;
+
+  if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -162,17 +181,26 @@ export default function EditCoursePage() {
                 )}
                 />
                 <FormField
-                control={form.control}
-                name="competency"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Competency</FormLabel>
-                    <FormControl>
-                        <Input placeholder="e.g., ISO 9001" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
+                    control={form.control}
+                    name="competency"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Competency</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a competency" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {competencyOptions.map(option => (
+                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
                 />
             </div>
              <FormField
