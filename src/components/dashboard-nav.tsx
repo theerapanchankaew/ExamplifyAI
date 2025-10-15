@@ -15,6 +15,8 @@ import {
   Library,
   BookMarked,
   Book,
+  Layers,
+  FileText,
 } from "lucide-react"
 
 import {
@@ -28,6 +30,8 @@ const navItems = [
   { href: "/dashboard/add-course", label: "Add Course (AI)", icon: PlusCircle },
   { href: "/dashboard/courses", label: "Courses", icon: Library },
   { href: "/dashboard/lessons", label: "Lessons", icon: Book },
+  { href: "/dashboard/modules", label: "Modules", icon: Layers },
+  { href: "/dashboard/chapters", label: "Chapters", icon: FileText },
   { href: "/dashboard/master-course-creator", label: "Master Courses", icon: BookMarked },
   { href: "/dashboard/roadmap-creator", label: "Roadmaps", icon: Waypoints },
   { href: "/dashboard/scheduler", label: "Scheduler", icon: Calendar },
