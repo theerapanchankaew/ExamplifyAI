@@ -60,31 +60,41 @@ export default function DashboardPage() {
   }, [firestore, authUser]);
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
-  const isAdmin = userProfile?.role === 'admin';
   
   // This effect handles the custom claim refresh logic.
   useEffect(() => {
     const checkAdminClaim = async () => {
-      if (authUser) {
-        if (isAdmin) {
-            const tokenResult = await authUser.getIdTokenResult();
-            if (!tokenResult.claims.role || tokenResult.claims.role !== 'admin') {
-                // Claim is not present or incorrect, force a refresh.
-                await authUser.getIdToken(true);
-            }
+      // Ensure we have the authenticated user and their profile from Firestore.
+      if (authUser && userProfile) {
+        // We rely on the Firestore document to be the source of truth for the user's role.
+        const isAdmin = userProfile.role === 'admin';
+        const tokenResult = await authUser.getIdTokenResult();
+        const hasAdminClaim = tokenResult.claims.role === 'admin';
+
+        // If the user is supposed to be an admin but the token doesn't have the claim,
+        // it means the token is stale and needs to be refreshed.
+        if (isAdmin && !hasAdminClaim) {
+            await authUser.getIdToken(true); // Force refresh the token
         }
-        // Mark token as refreshed (or not needing refresh) to allow queries to run.
+        
+        // After checking (and potentially refreshing), we can mark the token as ready.
+        // This will unblock the data queries.
+        setIsTokenRefreshed(true);
+      } else if (!isAuthUserLoading && !isProfileLoading) {
+        // If loading is finished but we have no user or profile, there's nothing to do.
+        // We can consider the "token check" as done for non-admin or logged-out users.
         setIsTokenRefreshed(true);
       }
     };
-    if(!isAuthUserLoading && authUser && userProfile) {
-      checkAdminClaim();
-    }
-  }, [authUser, userProfile, isAdmin, isAuthUserLoading]);
+    
+    checkAdminClaim();
 
+  }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
+
+  const isAdmin = userProfile?.role === 'admin';
 
   const coursesQuery = useMemoFirebase(() => {
-    // Wait for token refresh logic to complete before running queries.
+    // Wait for token refresh logic to complete before running queries that might require claims.
     if (!firestore || !isTokenRefreshed) return null;
     return collection(firestore, 'courses');
   }, [firestore, isTokenRefreshed]);
@@ -92,7 +102,7 @@ export default function DashboardPage() {
 
   const sevenDaysAgo = startOfDay(subDays(new Date(), 6));
   const attemptsQuery = useMemoFirebase(() => {
-    // Wait for token refresh logic to complete before running queries.
+    // This query should only run for admins and after the token has been verified.
     if (!firestore || !isAdmin || !isTokenRefreshed) return null;
     return query(
       collection(firestore, 'attempts'),
@@ -103,7 +113,7 @@ export default function DashboardPage() {
   const { data: recentAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
   const recentUsersQuery = useMemoFirebase(() => {
-    // Wait for token refresh logic to complete before running queries.
+    // This query should only run for admins and after the token has been verified.
     if (!firestore || !isAdmin || !isTokenRefreshed) return null;
     return query(collection(firestore, 'users'), orderBy('name', 'desc'), limit(5));
   }, [firestore, isAdmin, isTokenRefreshed]);
@@ -274,3 +284,5 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+    
