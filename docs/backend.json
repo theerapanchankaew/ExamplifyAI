@@ -53,7 +53,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Course",
       "type": "object",
-      "description": "Represents a course in the ExamplifyAI system.",
+      "description": "Represents a course (or subject) in the ExamplifyAI system.",
       "properties": {
         "id": {
           "type": "string",
@@ -96,7 +96,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Lesson",
       "type": "object",
-      "description": "Represents a lesson within a course.",
+      "description": "Represents a lesson within a course, which groups together modules.",
       "properties": {
         "id": {
           "type": "string",
@@ -110,18 +110,84 @@
           "type": "string",
           "description": "The title of the lesson."
         },
-        "content": {
-          "type": "string",
-          "description": "The content of the lesson (e.g., text, video URL)."
-        },
-        "quizId": {
-          "type": "string",
-          "description": "Reference to Quiz (Relationship: Lesson 1:1 Quiz)"
+        "moduleIds": {
+          "type": "array",
+          "description": "Ordered list of references to Modules. (Relationship: Lesson 1:N Module)",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
         "id",
         "courseId",
+        "title",
+        "moduleIds"
+      ]
+    },
+    "Module": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Module",
+      "type": "object",
+      "description": "Represents a module within a lesson, which groups together chapters.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the module entity."
+        },
+        "lessonId": {
+          "type": "string",
+          "description": "Reference to Lesson. (Relationship: Lesson 1:N Module)"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the module."
+        },
+        "chapterIds": {
+          "type": "array",
+          "description": "Ordered list of references to Chapters. (Relationship: Module 1:N Chapter)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "lessonId",
+        "title",
+        "chapterIds"
+      ]
+    },
+     "Chapter": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chapter",
+      "type": "object",
+      "description": "Represents a chapter, the smallest unit of learning content.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the chapter entity."
+        },
+        "moduleId": {
+          "type": "string",
+          "description": "Reference to Module. (Relationship: Module 1:N Chapter)"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the chapter."
+        },
+        "content": {
+          "type": "string",
+          "description": "The learning content of the chapter (e.g., text, video URL)."
+        },
+        "quizId": {
+          "type": "string",
+          "description": "Optional reference to a Quiz for this chapter. (Relationship: Chapter 1:1 Quiz)"
+        }
+      },
+      "required": [
+        "id",
+        "moduleId",
         "title",
         "content"
       ]
@@ -520,6 +586,18 @@
         },
         "description": "Stores lesson information, related to a course by `courseId`."
       },
+      "/modules/{moduleId}": {
+        "schema": {
+          "$ref": "#/entities/Module"
+        },
+        "description": "Stores module information, related to a lesson by `lessonId`."
+      },
+      "/chapters/{chapterId}": {
+        "schema": {
+          "$ref": "#/entities/Chapter"
+        },
+        "description": "Stores chapter information, related to a module by `moduleId`."
+      },
       "/questions/{questionId}": {
         "schema": {
           "$ref": "#/entities/Question"
@@ -589,3 +667,5 @@
     }
   }
 }
+
+    
