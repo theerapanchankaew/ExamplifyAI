@@ -79,7 +79,7 @@ export default function EditCoursePage() {
         description: course.description || '',
         courseCode: course.courseCode || '',
         competency: course.competency,
-        difficulty: course.difficulty || 'Beginner',
+        difficulty: course.difficulty,
       });
     }
   }, [course, form]);
