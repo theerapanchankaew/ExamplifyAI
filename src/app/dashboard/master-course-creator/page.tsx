@@ -10,6 +10,7 @@ import * as z from 'zod';
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -51,6 +52,7 @@ const jsonImportSchema = z.array(masterCourseJsonSchema);
 export default function MasterCourseCreatorPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   // State for manual form
   const [isSaving, setIsSaving] = useState(false);
   
@@ -93,9 +95,10 @@ export default function MasterCourseCreatorPage() {
         id: newDocRef.id,
         ...values,
       }
-      // Firestore `addDoc` does not return the document reference with the ID immediately in a way that can be easily merged.
-      // We are creating an ID beforehand and setting it.
-      await addDoc(collectionRef, dataToSave);
+      
+      const docRefWithData = doc(firestore, "masterCourses", newDocRef.id);
+      
+      await writeBatch(firestore).set(docRefWithData, dataToSave).commit();
 
       toast({
         title: 'Master Course Created',
@@ -111,6 +114,10 @@ export default function MasterCourseCreatorPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleEditClick = (id: string) => {
+    router.push(`/dashboard/master-courses/edit/${id}`);
   };
 
   const handleDeleteClick = (item: MasterCourse) => {
@@ -384,6 +391,9 @@ export default function MasterCourseCreatorPage() {
                            </div>
                         </TableCell>
                         <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditClick(item.id)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(item)} className="text-destructive hover:text-destructive" disabled={isDeleting}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -426,3 +436,5 @@ export default function MasterCourseCreatorPage() {
   );
 }
 
+
+    
