@@ -251,42 +251,33 @@ export default function DashboardPage() {
   
   useEffect(() => {
     const verifyAdminStatus = async () => {
-      // Wait until we have both the auth user and their profile
-      if (isAuthUserLoading || isProfileLoading) {
-        return;
-      }
-      
-      // If there's no authenticated user or no profile, they can't be an admin.
-      if (!authUser || !userProfile) {
-        setIsAdminReady(false);
-        return;
-      }
+      // Wait for auth and profile to load
+      if (!authUser || !userProfile) return;
 
-      // Check if the user has the 'admin' role in their profile
+      // Check if user is an admin based on Firestore profile
       if (userProfile.role === 'admin') {
         try {
           const tokenResult = await authUser.getIdTokenResult();
-          // If the token from the client doesn't have the admin claim, force a refresh.
+          // Force refresh if the custom claim isn't set in the token
           if (tokenResult.claims.role !== 'admin') {
-            await authUser.getIdToken(true); // Force refresh
+            await authUser.getIdToken(true); 
           }
-          // Now the token is refreshed and they are ready.
+          // Now the token is refreshed and admin is ready
           setIsAdminReady(true);
         } catch (error) {
-          console.error("Error refreshing admin token:", error);
-          setIsAdminReady(false); // Stay not-ready if token refresh fails
+          console.error("Error verifying admin token:", error);
+          setIsAdminReady(false); 
         }
       } else {
-        // If profile role is not admin, they are not ready.
+        // Not an admin
         setIsAdminReady(false);
       }
     };
     
     verifyAdminStatus();
 
-  }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
+  }, [authUser, userProfile]);
 
-  // Combined loading state
   const isLoading = isAuthUserLoading || isProfileLoading;
   
   if (isLoading) {
@@ -297,14 +288,16 @@ export default function DashboardPage() {
     )
   }
 
-  if (!isAdminReady) {
-    return (
-        <PlaceholderContent 
-            title="Access Denied" 
-            description="You do not have permission to view the admin dashboard."
-        />
-    );
+  // Once loading is complete, show content based on whether admin is ready
+  if (isAdminReady) {
+    return <AdminDashboardContent />;
   }
 
-  return <AdminDashboardContent />;
+  // If not loading and admin is not ready, deny access
+  return (
+      <PlaceholderContent 
+          title="Access Denied" 
+          description="You do not have permission to view the admin dashboard."
+      />
+  );
 }
