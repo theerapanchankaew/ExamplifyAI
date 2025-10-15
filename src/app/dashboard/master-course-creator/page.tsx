@@ -155,12 +155,21 @@ export default function MasterCourseCreatorPage() {
   const handleDownloadTemplate = () => {
     const template = [
       {
-        title: "Certified Example Professional",
-        facultyCode: "EXP",
-        description: "A certification for demonstrating example skills.",
+        title: "Certified Quality Management Professional",
+        facultyCode: "QMP",
+        description: "A comprehensive certification for professionals mastering quality management principles and practices.",
         requiredCompetencies: [
-          { taCode: "IAF 01", isicCode: "1000" },
-          { taCode: "IAF 02", isicCode: "2000" }
+          { taCode: "IAF 35", isicCode: "8549" },
+          { taCode: "IAF 37", isicCode: "8690" }
+        ]
+      },
+      {
+        title: "Advanced Food Safety Specialist",
+        facultyCode: "AFSS",
+        description: "Demonstrates expert-level knowledge in food safety standards and HACCP systems.",
+        requiredCompetencies: [
+          { taCode: "IAF 03", isicCode: "1079" },
+          { taCode: "IAF 01", isicCode: "0163" }
         ]
       }
     ];
@@ -417,4 +426,3 @@ export default function MasterCourseCreatorPage() {
   );
 }
 
-    
