@@ -48,30 +48,16 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-// #region Child Components for Data Fetching
 
-function TotalCoursesStat() {
-  const firestore = useFirestore();
-  const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
-  const { data: courses, isLoading } = useCollection<Course>(coursesQuery);
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">Total Courses</CardTitle>
-        <BookOpen className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold font-headline">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : courses?.length ?? 0}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AttemptsAndPassRateStats() {
+function AdminDashboardContent() {
     const firestore = useFirestore();
-    const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
 
+    // Total Courses
+    const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
+    const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
+
+    // Attempts and Pass Rate
+    const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     const attemptsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return query(
@@ -80,8 +66,7 @@ function AttemptsAndPassRateStats() {
             orderBy('timestamp', 'desc')
         );
     }, [firestore, sevenDaysAgo]);
-
-    const { data: recentAttempts, isLoading } = useCollection<Attempt>(attemptsQuery);
+    const { data: recentAttempts, isLoading: attemptsLoading } = useCollection<Attempt>(attemptsQuery);
     
     const { totalPasses, overallPassRate } = useMemo(() => {
         if (!recentAttempts) return { totalPasses: 0, overallPassRate: 0 };
@@ -90,46 +75,7 @@ function AttemptsAndPassRateStats() {
         return { totalPasses: passes, overallPassRate: rate };
     }, [recentAttempts]);
 
-    return (
-        <>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Attempts (Last 7 Days)</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                <div className="text-2xl font-bold font-headline">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : recentAttempts?.length ?? 0}</div>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pass Rate (Last 7 Days)</CardTitle>
-                <Percent className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                <div className="text-2xl font-bold font-headline">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `${overallPassRate.toFixed(1)}%`}</div>
-                </CardContent>
-            </Card>
-        </>
-    )
-}
-
-function DailyActivityChart() {
-    const firestore = useFirestore();
-    const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
-
-
-    const attemptsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(
-            collection(firestore, 'attempts'),
-            where('timestamp', '>=', sevenDaysAgo),
-            orderBy('timestamp', 'desc')
-        );
-    }, [firestore, sevenDaysAgo]);
-
-    const { data: recentAttempts, isLoading, error } = useCollection<Attempt>(attemptsQuery);
-
+    // Daily Activity Chart
     const chartData = useMemo(() => {
         const last7Days = Array.from({ length: 7 }, (_, i) => startOfDay(subDays(new Date(), 6 - i)));
         
@@ -150,46 +96,12 @@ function DailyActivityChart() {
         });
     }, [recentAttempts]);
 
-    return (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Daily Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-                <div className="flex h-[250px] w-full items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-            ) : error ? (
-                <div className="flex h-[250px] w-full items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
-                    <pre className='whitespace-pre-wrap text-sm'>{error.message}</pre>
-                </div>
-            ) : (
-                <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                    <ResponsiveContainer>
-                        <LineChart data={chartData}>
-                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} allowDecimals={false} />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line dataKey="attempts" type="monotone" stroke="var(--color-attempts)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-attempts)", strokeWidth: 2 }} activeDot={{ r: 6 }} />
-                        <Line dataKey="passes" type="monotone" stroke="var(--color-passes)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-passes)", strokeWidth: 2 }} activeDot={{ r: 6 }}/>
-                        </LineChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-    );
-}
-
-function RecentUsersCard() {
-    const firestore = useFirestore();
+    // Recent Users
     const recentUsersQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return query(collection(firestore, 'users'), orderBy('name', 'desc'), limit(5));
     }, [firestore]);
-    const { data: recentUsers, isLoading, error } = useCollection<UserProfile>(recentUsersQuery);
+    const { data: recentUsers, isLoading: usersLoading, error: usersError } = useCollection<UserProfile>(recentUsersQuery);
 
     const getAvatarForUser = (user: UserProfile, index: number) => {
         const imageId = user.role === 'admin' ? 'user-avatar-1' : `student-avatar-1`;
@@ -210,83 +122,124 @@ function RecentUsersCard() {
     }
 
     return (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-             {isLoading ? (
-                <div className="flex h-[295px] w-full items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-            ) : error ? (
-                 <div className="flex h-[295px] w-full items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
-                    <pre className='whitespace-pre-wrap text-sm'>{error.message}</pre>
-                </div>
-            ) : (
-                <div className="overflow-x-auto">
-                <Table>
-                    <TableHeader>
-                    <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Role</TableHead>
-                    </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                    {recentUsers && recentUsers.map((user, index) => {
-                        const avatar = getAvatarForUser(user, index);
-                        return (
-                        <TableRow key={user.userId}>
-                            <TableCell>
-                            <div className="flex items-center gap-3">
-                                <Avatar className="h-9 w-9">
-                                <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
-                                <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
-                                </Avatar>
-                                <span className="font-medium truncate w-32">{user.name}</span>
-                            </div>
-                            </TableCell>
-                            <TableCell><div className="truncate w-40">{user.email}</div></TableCell>
-                            <TableCell>
-                            <Badge variant={getRoleVariant(user.role)}>
-                                {user.role || 'N/A'}
-                                </Badge>
-                            </TableCell>
-                        </TableRow>
-                        )
-                        })}
-                    </TableBody>
-                </Table>
-                </div>
-             )}
-          </CardContent>
-        </Card>
-    );
-}
-
-function AdminDashboardContent() {
-    return (
         <div className="flex flex-col gap-8">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <TotalCoursesStat />
-                <AttemptsAndPassRateStats />
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Courses</CardTitle>
+                        <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold font-headline">{coursesLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : courses?.length ?? 0}</div>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Attempts (Last 7 Days)</CardTitle>
+                    <Activity className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                    <div className="text-2xl font-bold font-headline">{attemptsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : recentAttempts?.length ?? 0}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Pass Rate (Last 7 Days)</CardTitle>
+                    <Percent className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                    <div className="text-2xl font-bold font-headline">{attemptsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `${overallPassRate.toFixed(1)}%`}</div>
+                    </CardContent>
+                </Card>
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
-                <DailyActivityChart />
-                <RecentUsersCard />
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Daily Activity</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {attemptsLoading ? (
+                            <div className="flex h-[250px] w-full items-center justify-center">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : (
+                            <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                                <ResponsiveContainer>
+                                    <LineChart data={chartData}>
+                                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} allowDecimals={false} />
+                                    <ChartTooltip content={<ChartTooltipContent />} />
+                                    <Line dataKey="attempts" type="monotone" stroke="var(--color-attempts)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-attempts)", strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                                    <Line dataKey="passes" type="monotone" stroke="var(--color-passes)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-passes)", strokeWidth: 2 }} activeDot={{ r: 6 }}/>
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </ChartContainer>
+                        )}
+                    </CardContent>
+                 </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Recent Users</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {usersLoading ? (
+                            <div className="flex h-[295px] w-full items-center justify-center">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : usersError ? (
+                            <div className="flex h-[295px] w-full items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
+                                <pre className='whitespace-pre-wrap text-sm'>{usersError.message}</pre>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                <TableRow>
+                                    <TableHead>User</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead>Role</TableHead>
+                                </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                {recentUsers && recentUsers.map((user, index) => {
+                                    const avatar = getAvatarForUser(user, index);
+                                    return (
+                                    <TableRow key={user.userId}>
+                                        <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-9 w-9">
+                                            <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
+                                            <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
+                                            </Avatar>
+                                            <span className="font-medium truncate w-32">{user.name}</span>
+                                        </div>
+                                        </TableCell>
+                                        <TableCell><div className="truncate w-40">{user.email}</div></TableCell>
+                                        <TableCell>
+                                        <Badge variant={getRoleVariant(user.role)}>
+                                            {user.role || 'N/A'}
+                                            </Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                    )
+                                    })}
+                                </TableBody>
+                            </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                 </Card>
             </div>
         </div>
     );
 }
 
-// #endregion
 
 export default function DashboardPage() {
   const firestore = useFirestore();
   const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
   
-  // This state will gate the rendering of admin-only components
   const [isAdminReady, setIsAdminReady] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -298,39 +251,28 @@ export default function DashboardPage() {
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
   
   useEffect(() => {
-    // This effect runs once after the user and their profile are loaded.
-    // It checks for admin role and ensures the auth token has the correct custom claims.
     const verifyAdminStatus = async () => {
-      if (isAuthUserLoading || isProfileLoading) {
-        return; // Wait until user and profile are loaded
-      }
-
-      setAuthChecked(true); // Mark that we've completed the initial load.
-
       if (!authUser || !userProfile) {
-        setIsAdminReady(false); // Not logged in or no profile, not an admin
+        if (!isAuthUserLoading && !isProfileLoading) {
+            setAuthChecked(true);
+        }
         return;
       }
 
       if (userProfile.role === 'admin') {
         const tokenResult = await authUser.getIdTokenResult();
         if (tokenResult.claims.role !== 'admin') {
-          // The claim is missing, force a token refresh.
           await authUser.getIdToken(true);
         }
-        // After potential refresh, we can consider the admin ready.
         setIsAdminReady(true);
-      } else {
-        // User does not have admin role in their profile.
-        setIsAdminReady(false);
       }
+      setAuthChecked(true);
     };
     
     verifyAdminStatus();
 
   }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
 
-  // Combined loading state
   const isLoading = isAuthUserLoading || isProfileLoading || !authChecked;
   
   if (isLoading) {
@@ -350,7 +292,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Render the admin dashboard only when isAdminReady is true
   return <AdminDashboardContent />;
 }
 
