@@ -2,7 +2,7 @@
 'use client';
 
 import Image from 'next/image';
-import { ShoppingCart, Trash2, Gem, Loader2 } from "lucide-react";
+import { ShoppingCart, Trash2, Gem, Loader2, Package } from "lucide-react";
 import { useCart } from "@/context/cart-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,24 +45,32 @@ export function CartButton() {
                         <ScrollArea className="flex-1 -mr-6">
                             <div className="flex flex-col gap-6 pr-6">
                                 {cartItems.map(item => (
-                                    <div key={item.id} className="flex gap-4">
-                                        <Image
-                                            src={item.imageUrl}
-                                            alt={item.title}
-                                            width={100}
-                                            height={60}
-                                            className="rounded-md object-cover aspect-video"
-                                        />
+                                    <div key={`${item.type}-${item.id}`} className="flex gap-4">
+                                        {item.type === 'course' ? (
+                                             <Image
+                                                src={item.imageUrl}
+                                                alt={item.title}
+                                                width={100}
+                                                height={60}
+                                                className="rounded-md object-cover aspect-video"
+                                            />
+                                        ) : (
+                                            <div className="w-[100px] aspect-video bg-muted rounded-md flex items-center justify-center">
+                                                <Package className="h-8 w-8 text-muted-foreground" />
+                                            </div>
+                                        )}
+                                       
                                         <div className="flex flex-col justify-between flex-1">
                                             <div>
                                                 <h4 className="font-semibold text-sm leading-tight line-clamp-2">{item.title}</h4>
+                                                {item.parentTitle && <p className="text-xs text-muted-foreground line-clamp-1">From: {item.parentTitle}</p>}
                                                 <div className="flex items-center gap-1 text-primary font-bold text-sm mt-1">
                                                     <Gem className="h-3 w-3" />
                                                     <span>{item.priceInCab}</span>
                                                 </div>
                                             </div>
                                         </div>
-                                        <Button variant="ghost" size="icon" className="self-center shrink-0" onClick={() => removeFromCart(item.id)}>
+                                        <Button variant="ghost" size="icon" className="self-center shrink-0" onClick={() => removeFromCart(item.id, item.type)}>
                                             <Trash2 className="h-4 w-4 text-muted-foreground" />
                                         </Button>
                                     </div>

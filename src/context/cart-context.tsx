@@ -1,24 +1,29 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser } from '@/firebase';
-import { doc, updateDoc, arrayUnion, runTransaction } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, runTransaction, writeBatch } from 'firebase/firestore';
 import type { UserProfile } from '@/types';
 import type { Course } from '@/types/course';
+import type { Module } from '@/types/module';
 
-export interface CartItem extends Course {
+
+export type CartItem = {
+    id: string;
+    type: 'course' | 'module';
+    title: string;
     imageUrl: string;
     imageHint: string;
     priceInCab: number;
-}
-
+    parentTitle?: string; // e.g., Course title for a module
+};
 
 interface CartContextType {
   cartItems: CartItem[];
   addToCart: (item: CartItem) => void;
-  removeFromCart: (itemId: string) => void;
+  removeFromCart: (itemId: string, itemType: 'course' | 'module') => void;
   checkout: () => Promise<void>;
   isCheckingOut: boolean;
   cartCount: number;
@@ -43,7 +48,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
 
   const addToCart = (item: CartItem) => {
-    if (cartItems.find(cartItem => cartItem.id === item.id)) {
+    if (cartItems.find(cartItem => cartItem.id === item.id && cartItem.type === item.type)) {
       toast({
           variant: "default",
           title: "Already in Cart",
@@ -58,8 +63,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const removeFromCart = (itemId: string) => {
-    const itemToRemove = cartItems.find(item => item.id === itemId);
+  const removeFromCart = (itemId: string, itemType: 'course' | 'module') => {
+    const itemToRemove = cartItems.find(item => item.id === itemId && item.type === itemType);
     if (itemToRemove) {
         toast({
             variant: 'destructive',
@@ -67,7 +72,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             description: `"${itemToRemove.title}" has been removed.`,
         })
     }
-    setCartItems(prevItems => prevItems.filter(item => item.id !== itemId));
+    setCartItems(prevItems => prevItems.filter(item => !(item.id === itemId && item.type === itemType)));
   };
 
   const total = useMemo(() => {
@@ -101,11 +106,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
           throw new Error("Insufficient CAB tokens.");
         }
         
-        const courseIdsToEnroll = cartItems.map(item => item.id);
-
-
+        // Separate items by type
+        const courseIdsToEnroll = cartItems.filter(item => item.type === 'course').map(item => item.id);
+        // We might need a separate field for modules, for now, we just enroll in the parent course
+        // For simplicity, we are assuming buying a module means enrolling in the parent course if not already enrolled
+        // A more complex logic would be needed for a real app (e.g. `enrolledModuleIds`)
+        
         const newTokens = currentTokens - total;
         
+        // This is a simplified logic. A real app might need to handle module purchases differently.
+        // Here, we just enroll the user in the course.
         transaction.update(userDocRef, { 
             cabTokens: newTokens,
             enrolledCourseIds: arrayUnion(...courseIdsToEnroll)
@@ -114,7 +124,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       toast({
         title: 'Checkout Successful!',
-        description: `You have enrolled in ${cartItems.length} new course(s).`,
+        description: `You have enrolled in new content. Check "My Courses".`,
       });
       setCartItems([]);
     } catch (error: any) {
