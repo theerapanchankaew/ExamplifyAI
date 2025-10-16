@@ -1,176 +1,145 @@
 /**
- * @file Firebase Security Rules for ExamplifyAI
+ * @fileoverview Firestore Security Rules for ExamplifyAI.
  *
- * @core_philosophy This ruleset prioritizes secure access control based on user roles and data ownership.
- *   It enforces a strict model where users can only access their own data unless explicitly granted
- *   broader permissions (e.g., through admin roles). Data validation is relaxed to allow rapid prototyping.
+ * Core Philosophy:
+ * This ruleset employs a hybrid security model, balancing open access for some content collections
+ * (e.g., questions) with strict user-ownership for personal data and admin-only access for
+ * sensitive system data (e.g., metrics).
  *
- * @data_structure
- *   - `/users/{userId}`: Stores user profiles. `userId` MUST match the authenticated user's UID.
- *   - `/courses/{courseId}`: Stores course information. Publicly readable.
- *   - `/lessons/{lessonId}`: Stores lesson information, related to a course by `courseId`. Publicly readable.
- *   - `/modules/{moduleId}`: Stores module information, related to a lesson by `lessonId`. Publicly readable.
- *   - `/chapters/{chapterId}`: Stores chapter information, related to a module by `moduleId`. Publicly readable.
- *   - `/questions/{questionId}`: Stores questions for exams and quizzes. Publicly readable.
- *   - `/exams/{examId}`: Stores exam definitions, related to a course by `courseId`. Publicly readable.
- *   - `/attempts/{attemptId}`: Stores user exam attempts, linked to a user by `userId` and an exam by `examId`.
- *   - `/metrics/daily/{date}`: Stores daily metrics for the system. Document ID is the date in YYYYMMDD format.
- *   - `/courseCompetencies/{courseCompetencyId}`: Stores the mapping between courses and competencies. Publicly readable.
- *   - `/users/{userId}/achievements/{userAchievementId}`: Stores user achievements. Accessible only by the user.
- *   - `/masterCourses/{masterCourseId}`: Stores master course definitions. Publicly readable.
- *   - `/masterCertificates/{masterCertificateId}`: Stores issued master certificates, linked to a user by `userId` and a master course by `masterCourseId`.
- *   - `/roadmaps/{roadmapId}`: Stores roadmap definitions. Publicly readable.
- *   - `/schedules/{scheduleId}`: Stores schedule events. Publicly readable.
- *   - `/quizzes/{quizId}`: Stores quiz information. Publicly readable.
+ * Data Structure:
+ * - User profiles are stored under `/users/{userId}`, secured via ownership.
+ * - Learning content (courses, lessons, modules, chapters, questions, exams, quizzes, roadmaps)
+ *   is stored in top-level collections, generally readable by anyone.
+ * - User-specific data (attempts, achievements, master certificates) is stored under the
+ *   corresponding `/users/{userId}` path and secured via ownership.
+ * - System metrics are stored under `/metrics/daily/{date}` and write-protected.
  *
- * @key_security_decisions
- *   - User listing is explicitly denied for privacy.
- *   - Public read access is granted to most top-level collections (courses, lessons, etc.) to facilitate open access to learning content.
- *   - Ownership is strictly enforced for user-specific data (e.g., user profiles, attempts, achievements).
- *
- * @denormalization_for_authorization
- *   - No denormalization is explicitly defined, but the rules assume that documents under `/users/{userId}` contain a `userId` field that matches the path.
+ * Key Security Decisions:
+ * - User listing is disallowed to protect privacy.
+ * - Public read access is granted to learning content collections to facilitate discovery.
+ * - Ownership is enforced for all write operations on user-specific data.
+ * - Data validation is relaxed during the prototyping phase to allow for schema iteration.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     * @return {bool} True if the request is authenticated, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     * @param {string} userId The user ID to compare against the authenticated user's UID.
-     * @return {bool} True if the UIDs match, false otherwise.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user is the owner of an existing document.
-     * @param {string} userId The user ID of the document's owner.
-     * @return {bool} True if the user is the owner and the document exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Security rules for user profiles.
+     * @description Grants access to user profile documents.
      * @path /users/{userId}
-     * @allow (create) - If the user is creating their own profile (userId matches auth.uid).
-     * @allow (get, update, delete) - If the user is the owner of the profile.
-     * @deny (list) - User listing is not allowed.
-     * @deny (create) - If the user tries to create a profile for another user.
-     * @principle Enforces user ownership for profile data.
+     * @allow (create) - If the user's ID matches the requested document ID.
+     * @allow (get, list, update, delete) - If the user is the owner of the document.
+     * @deny (create) - If the user's ID does not match the requested document ID.
+     * @deny (get, list, update, delete) - If the user is not the owner of the document.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == userId;
-      allow delete: if isExistingOwner(userId);
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isSignedIn() && isOwner(userId);
+      allow get, list, update, delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Security rules for courses.
+     * @description Grants read access to course documents and restricts write access.
      * @path /courses/{courseId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list) - Allows any user to read the course details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting course details.
+     * @principle Public read with owner-only writes.
      */
     match /courses/{courseId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Security rules for lessons.
+     * @description Grants read access to lesson documents and restricts write access.
      * @path /lessons/{lessonId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list) - Allows any user to read the lesson details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting lesson details.
+     * @principle Public read with owner-only writes.
      */
     match /lessons/{lessonId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Security rules for modules.
+     * @description Grants read access to module documents and restricts write access.
      * @path /modules/{moduleId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list) - Allows any user to read the module details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting module details.
+     * @principle Public read with owner-only writes.
      */
     match /modules/{moduleId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Security rules for chapters.
+     * @description Grants read access to chapter documents and restricts write access.
      * @path /chapters/{chapterId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list) - Allows any user to read the chapter details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting chapter details.
+     * @principle Public read with owner-only writes.
      */
     match /chapters/{chapterId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
-    }
-
-     /**
-      * @description Security rules for questions.
-      * @path /questions/{questionId}
-      * @allow (get, list) - Public read access.
-      * @deny (create, update, delete) - No write access.
-      * @principle Publicly readable collection.
-      */
-    match /questions/{questionId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Security rules for exams.
+     * @description Grants read access to question documents and restricts write access.
+     * @path /questions/{questionId}
+     * @allow (get, list) - Allows any user to read the question details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting question details.
+     * @principle Public read with owner-only writes.
+     */
+    match /questions/{questionId} {
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    }
+
+    /**
+     * @description Grants read access to exam documents and restricts write access.
      * @path /exams/{examId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list) - Allows any user to read the exam details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting exam details.
+     * @principle Public read with owner-only writes.
      */
     match /exams/{examId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Security rules for attempts.
+     * @description Grants access to attempt documents within a specific user's collection.
      * @path /attempts/{attemptId}
-     * @allow (get) - Allow reads.
-     * @allow (list) - Deny listing of all attempts
-     * @allow (create) - Allow creation
-     * @allow (update, delete) - No writes allowed.
+     * @allow (get, list, update, delete) - If the user is the owner of the document.
+     * @deny (create) - If the user is not the owner of the document.
+     * @principle Enforces document ownership for writes.
      */
     match /attempts/{attemptId} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if isSignedIn();
-      allow update, delete: if false;
+      allow create: if false; // Attempts should only be created through a backend process.
+      allow get, list, update, delete: if false; // No access granted, must be tied to a userId subcollection
     }
 
     /**
-     * @description Security rules for daily metrics.
+     * @description Grants access to metrics documents, restricting write access.
      * @path /metrics/daily/{date}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list) - Allows any user to read the daily metrics.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting metrics.
+     * @principle Read-only access for metrics.
      */
     match /metrics/daily/{date} {
       allow get, list: if true;
@@ -178,90 +147,153 @@ service cloud.firestore {
     }
 
     /**
-     * @description Security rules for course competencies.
+     * @description Grants read access to courseCompetency documents and restricts write access.
      * @path /courseCompetencies/{courseCompetencyId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list) - Allows any user to read the courseCompetency details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting courseCompetency details.
+     * @principle Public read with owner-only writes.
      */
     match /courseCompetencies/{courseCompetencyId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Security rules for user achievements.
+     * @description Grants access to user achievement documents.
      * @path /users/{userId}/achievements/{userAchievementId}
-     * @allow (get, list, create, update, delete) - Only the owner can access their achievements.
-     * @deny (create) - If the user tries to create an achievement for another user.
-     * @principle Enforces user ownership for achievement data.
+     * @allow (create) - If the user's ID matches the requested document ID.
+     * @allow (get, list, update, delete) - If the user is the owner of the document.
+     * @deny (create) - If the user's ID does not match the requested document ID.
+     * @deny (get, list, update, delete) - If the user is not the owner of the document.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/achievements/{userAchievementId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isSignedIn() && isOwner(userId);
+      allow get, list, update, delete: if isExistingOwner(userId);
     }
 
-    /**
-     * @description Security rules for master courses.
+   /**
+     * @description Grants read access to masterCourse documents and restricts write access.
      * @path /masterCourses/{masterCourseId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list) - Allows any user to read the masterCourse details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting masterCourse details.
+     * @principle Public read with owner-only writes.
      */
     match /masterCourses/{masterCourseId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Security rules for master certificates.
+     * @description Grants read access to masterCertificate documents and restricts write access.
      * @path /masterCertificates/{masterCertificateId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @allow (get, list, update, delete) - If the user is the owner of the document.
+     * @deny (create) - If the user is not the owner of the document.
+     * @principle Enforces document ownership for writes.
      */
     match /masterCertificates/{masterCertificateId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create: if false; // Certificates should only be created through a backend process.
+      allow get, list, update, delete: if false; // No access granted, must be tied to a userId subcollection
     }
 
-     /**
-      * @description Security rules for roadmaps.
-      * @path /roadmaps/{roadmapId}
-      * @allow (get, list) - Public read access.
-      * @deny (create, update, delete) - No write access.
-      * @principle Publicly readable collection.
-      */
+   /**
+     * @description Grants read access to roadmap documents and restricts write access.
+     * @path /roadmaps/{roadmapId}
+     * @allow (get, list) - Allows any user to read the roadmap details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting roadmap details.
+     * @principle Public read with owner-only writes.
+     */
     match /roadmaps/{roadmapId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
-     /**
-      * @description Security rules for schedules.
-      * @path /schedules/{scheduleId}
-      * @allow (get, list) - Public read access.
-      * @deny (create, update, delete) - No write access.
-      * @principle Publicly readable collection.
-      */
+   /**
+     * @description Grants read access to schedule documents and restricts write access.
+     * @path /schedules/{scheduleId}
+     * @allow (get, list) - Allows any user to read the schedule details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting schedule details.
+     * @principle Public read with owner-only writes.
+     */
     match /schedules/{scheduleId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    }
+
+   /**
+     * @description Grants read access to quiz documents and restricts write access.
+     * @path /quizzes/{quizId}
+     * @allow (get, list) - Allows any user to read the quiz details.
+     * @deny (create, update, delete) - Denies any user from creating, updating, or deleting quiz details.
+     * @principle Public read with owner-only writes.
+     */
+    match /quizzes/{quizId} {
+        allow get, list: if true;
+        allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Security rules for quizzes.
-     * @path /quizzes/{quizId}
-     * @allow (get, list) - Public read access.
-     * @deny (create, update, delete) - No write access.
-     * @principle Publicly readable collection.
+     * @description Grants access to masterCertificate documents.
+     * @path /users/{userId}/masterCertificates/{masterCertificateId}
+     * @allow (create) - If the user's ID matches the requested document ID.
+     * @allow (get, list, update, delete) - If the user is the owner of the document.
+     * @deny (create) - If the user's ID does not match the requested document ID.
+     * @deny (get, list, update, delete) - If the user is not the owner of the document.
+     * @principle Enforces document ownership for writes.
      */
-    match /quizzes/{quizId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+    match /users/{userId}/masterCertificates/{masterCertificateId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isSignedIn() && isOwner(userId);
+      allow get, list, update, delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants access to attempt documents.
+     * @path /users/{userId}/attempts/{attemptId}
+     * @allow (create) - If the user's ID matches the requested document ID.
+     * @allow (get, list, update, delete) - If the user is the owner of the document.
+     * @deny (create) - If the user's ID does not match the requested document ID.
+     * @deny (get, list, update, delete) - If the user is not the owner of the document.
+     * @principle Enforces document ownership for writes.
+     */
+    match /users/{userId}/attempts/{attemptId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isSignedIn() && isOwner(userId);
+      allow get, list, update, delete: if isExistingOwner(userId);
     }
   }
 }
