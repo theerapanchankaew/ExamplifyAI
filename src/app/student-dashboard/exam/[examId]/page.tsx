@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirestore, useDoc, useCollection, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
@@ -10,14 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle, Video, VideoOff } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { UserProfile } from '@/types';
-
+import Webcam from 'react-webcam';
 
 // Matches backend.json entities
 type Exam = { id: string; courseId: string; questionIds: string[] };
@@ -35,6 +36,29 @@ export default function ExamPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+
+  const webcamRef = useRef<Webcam>(null);
+
+  useEffect(() => {
+    const getCameraPermission = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setHasCameraPermission(true);
+        // Stream is managed by the Webcam component, no need to set srcObject manually
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings to take the exam.',
+        });
+      }
+    };
+
+    getCameraPermission();
+  }, [toast]);
   
   // Get user profile to check tokens
   const userDocRef = useMemoFirebase(() => {
@@ -65,7 +89,7 @@ export default function ExamPage() {
     return exam.questionIds.map(id => questionMap.get(id)).filter((q): q is Question => !!q);
   }, [questions, exam]);
 
-  const isLoading = examLoading || questionsLoading;
+  const isLoading = examLoading || questionsLoading || hasCameraPermission === null;
 
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -157,9 +181,29 @@ export default function ExamPage() {
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+          <div className="flex flex-col items-center gap-4">
+             <Loader2 className="h-16 w-16 animate-spin text-primary" />
+             <p className="text-muted-foreground">Preparing your exam environment...</p>
+          </div>
       </div>
     );
+  }
+
+  if (hasCameraPermission === false) {
+    return (
+        <div className="flex h-screen items-center justify-center">
+            <Card className="max-w-lg text-center">
+                <CardHeader>
+                    <CardTitle className="text-destructive">Camera Access Denied</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p>This exam requires camera access for proctoring.</p>
+                    <p className="text-muted-foreground text-sm mt-2">Please enable camera permissions in your browser's settings and refresh the page to continue.</p>
+                    <Button className="mt-6" onClick={() => router.push('/student-dashboard/my-courses')}>Back to My Courses</Button>
+                </CardContent>
+            </Card>
+        </div>
+    )
   }
 
   if (!exam || !currentQuestion) {
@@ -176,45 +220,81 @@ export default function ExamPage() {
 
   return (
     <>
-      <div className="mx-auto max-w-3xl">
-        <Card>
-          <CardHeader>
-            <Progress value={progress} className="mb-4" />
-            <CardTitle>Question {currentQuestionIndex + 1} of {sortedQuestions.length}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="prose max-w-none">
-              <p className="text-lg font-medium">{currentQuestion.stem}</p>
-            </div>
-
-            <RadioGroup
-              value={answers[currentQuestion.id] || ""}
-              onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-              className="mt-6 space-y-4"
-            >
-              {currentQuestion.options.map((option, index) => (
-                <div key={index} className="flex items-center space-x-3 rounded-md border p-4 hover:bg-accent/50 transition-colors">
-                  <RadioGroupItem value={option} id={`q${currentQuestion.id}-o${index}`} />
-                  <Label htmlFor={`q${currentQuestion.id}-o${index}`} className="flex-1 cursor-pointer">{option}</Label>
+      <div className="grid lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+            <Card>
+            <CardHeader>
+                <Progress value={progress} className="mb-4" />
+                <CardTitle>Question {currentQuestionIndex + 1} of {sortedQuestions.length}</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="prose max-w-none">
+                <p className="text-lg font-medium">{currentQuestion.stem}</p>
                 </div>
-              ))}
-            </RadioGroup>
-          </CardContent>
-        </Card>
 
-        <div className="mt-6 flex justify-between">
-          <Button variant="outline" onClick={handlePrev} disabled={currentQuestionIndex === 0}>
-            <ChevronLeft className="mr-2" /> Previous
-          </Button>
-          {currentQuestionIndex === sortedQuestions.length - 1 ? (
-             <Button onClick={() => setShowConfirmDialog(true)} disabled={Object.keys(answers).length !== sortedQuestions.length}>
-              <CheckCircle className="mr-2" /> Submit Exam
+                <RadioGroup
+                value={answers[currentQuestion.id] || ""}
+                onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
+                className="mt-6 space-y-4"
+                >
+                {currentQuestion.options.map((option, index) => (
+                    <div key={index} className="flex items-center space-x-3 rounded-md border p-4 hover:bg-accent/50 transition-colors">
+                    <RadioGroupItem value={option} id={`q${currentQuestion.id}-o${index}`} />
+                    <Label htmlFor={`q${currentQuestion.id}-o${index}`} className="flex-1 cursor-pointer">{option}</Label>
+                    </div>
+                ))}
+                </RadioGroup>
+            </CardContent>
+            </Card>
+
+            <div className="mt-6 flex justify-between">
+            <Button variant="outline" onClick={handlePrev} disabled={currentQuestionIndex === 0}>
+                <ChevronLeft className="mr-2" /> Previous
             </Button>
-          ) : (
-            <Button onClick={handleNext}>
-              Next <ChevronRight className="ml-2" />
-            </Button>
-          )}
+            {currentQuestionIndex === sortedQuestions.length - 1 ? (
+                <Button onClick={() => setShowConfirmDialog(true)} disabled={Object.keys(answers).length !== sortedQuestions.length}>
+                <CheckCircle className="mr-2" /> Submit Exam
+                </Button>
+            ) : (
+                <Button onClick={handleNext}>
+                Next <ChevronRight className="ml-2" />
+                </Button>
+            )}
+            </div>
+        </div>
+
+        <div className="lg:col-span-1">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Video className="text-primary"/> Proctoring Enabled</CardTitle>
+                    <CardDescription>Your exam session is being monitored.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="aspect-video w-full bg-muted rounded-md overflow-hidden relative">
+                         <Webcam
+                            audio={false}
+                            ref={webcamRef}
+                            screenshotFormat="image/jpeg"
+                            videoConstraints={{ facingMode: "user" }}
+                            className="w-full h-full object-cover"
+                         />
+                         <div className="absolute top-2 left-2 flex items-center gap-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-200 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400"></span>
+                            </span>
+                            REC
+                         </div>
+                    </div>
+                    <Alert variant="destructive" className="mt-4">
+                        <VideoOff className="h-4 w-4"/>
+                        <AlertTitle>Maintain Focus</AlertTitle>
+                        <AlertDescription>
+                            Keep your face visible and stay focused on the exam. Looking away may invalidate your results.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
         </div>
       </div>
 
@@ -238,3 +318,5 @@ export default function ExamPage() {
     </>
   );
 }
+
+    
