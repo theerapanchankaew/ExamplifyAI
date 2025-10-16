@@ -10,6 +10,7 @@ import {
 import { UserNav } from "@/components/user-nav"
 import { DashboardNav } from "@/components/dashboard-nav"
 import { BookA } from "lucide-react"
+import { UserTokens } from "@/components/user-tokens"
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -31,6 +32,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div className="flex-1">
              {/* Breadcrumbs or page title can go here */}
           </div>
+          <UserTokens />
           <UserNav />
         </header>
         <main className="flex-1 p-4 md:p-8">

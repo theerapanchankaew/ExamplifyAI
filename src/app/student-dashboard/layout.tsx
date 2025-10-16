@@ -15,6 +15,7 @@ import { StudentNav } from "@/components/student-nav"
 import { BookA } from "lucide-react"
 import { CartProvider } from "@/context/cart-context"
 import { CartButton } from "@/components/cart-button";
+import { UserTokens } from "@/components/user-tokens";
 
 
 export default function StudentDashboardLayout({ children }: { children: ReactNode }) {
@@ -39,6 +40,7 @@ export default function StudentDashboardLayout({ children }: { children: ReactNo
                 {/* Breadcrumbs or page title can go here */}
             </div>
                 <CartButton />
+                <UserTokens />
             <UserNav />
             </header>
             <main className="flex-1 p-4 md:p-8 bg-muted/30">
