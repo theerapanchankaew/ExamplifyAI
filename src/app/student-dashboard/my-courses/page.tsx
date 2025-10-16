@@ -43,11 +43,15 @@ export default function MyCoursesPage() {
 
 
   const [coursesWithExams, setCoursesWithExams] = useState<CourseWithExam[]>([]);
+  const [isFindingExams, setIsFindingExams] = useState(true);
 
   useEffect(() => {
     const findExams = async () => {
-      if (!firestore || !courses) return;
-
+      if (!firestore || !courses) {
+        setIsFindingExams(false);
+        return;
+      }
+      setIsFindingExams(true);
       const enrichedCourses = await Promise.all(
         courses.map(async (course) => {
           try {
@@ -56,22 +60,27 @@ export default function MyCoursesPage() {
             const querySnapshot = await getDocs(q);
             if (!querySnapshot.empty) {
               const examDoc = querySnapshot.docs[0];
-              return { ...course, examId: examDoc.id };
+              return { ...course, examId: examDoc.id, examError: false };
             }
+            // No exam found is a valid state, not an error.
             return { ...course, examId: undefined, examError: true };
           } catch (error) {
             console.error(`Error finding exam for course ${course.id}:`, error);
+            // An actual error occurred during fetch.
             return { ...course, examId: undefined, examError: true };
           }
         })
       );
       setCoursesWithExams(enrichedCourses);
+      setIsFindingExams(false);
     };
 
     if (courses) {
         findExams();
+    } else if (!coursesLoading) {
+        setIsFindingExams(false);
     }
-  }, [courses, firestore]);
+  }, [courses, firestore, coursesLoading]);
 
   const getCourseImage = (index: number) => {
     const imageId = `course-placeholder-${(index % 3) + 1}`;
@@ -79,19 +88,19 @@ export default function MyCoursesPage() {
     return image || PlaceHolderImages[2];
   };
   
-  const handleStartExam = (examId?: string, examError?: boolean) => {
-    if (examError) {
+  const handleStartExam = (examId?: string, hasError?: boolean) => {
+    if (hasError || !examId) {
        toast({
          variant: 'destructive',
-         title: "Exam Not Found",
-         description: "An exam has not been configured for this course.",
+         title: "Exam Not Available",
+         description: "An exam has not been configured for this course yet.",
        });
-    } else if (examId) {
+    } else {
       router.push(`/student-dashboard/exam/${examId}`);
     }
   }
 
-  const isLoading = profileLoading || coursesLoading || (courses && coursesWithExams.length < courses.length);
+  const isLoading = profileLoading || coursesLoading || isFindingExams;
 
   if (isLoading) {
     return (
@@ -127,6 +136,7 @@ export default function MyCoursesPage() {
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {coursesWithExams.map((course, index) => {
           const courseImage = getCourseImage(index);
+          const hasExam = course.examId && !course.examError;
           return (
             <Card key={course.id} className="flex flex-col overflow-hidden">
               <div className="relative">
@@ -145,9 +155,13 @@ export default function MyCoursesPage() {
                 {course.description && <CardDescription className="line-clamp-3 text-sm mt-1">{course.description}</CardDescription>}
               </CardHeader>
               <CardContent className="flex-grow flex flex-col justify-end">
-                <Button className="w-full mt-4" onClick={() => handleStartExam(course.examId, course.examError)}>
-                  {course.examError && <AlertTriangle className="mr-2 h-4 w-4" />}
-                  Start Exam
+                <Button 
+                  className="w-full mt-4" 
+                  onClick={() => handleStartExam(course.examId, !hasExam)}
+                  disabled={!hasExam}
+                >
+                  {!hasExam && <AlertTriangle className="mr-2 h-4 w-4" />}
+                  {hasExam ? "Start Exam" : "No Exam"}
                 </Button>
               </CardContent>
             </Card>
