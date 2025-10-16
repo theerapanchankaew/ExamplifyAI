@@ -1,292 +1,321 @@
 /**
- * @fileoverview Firestore Security Rules for ExamplifyAI.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for user profiles and achievements.
+ *  All other collections are publicly readable but writable only by authenticated users,
+ *  with no role-based access control (all authenticated users are treated equally).
  *
- * Core Philosophy:
- * This ruleset prioritizes secure access control based on user roles and
- * ownership.  It aims for strong authorization while remaining flexible on
- * data shapes during the prototyping phase.
+ *  Data Structure:
+ *  - /users/{userId}: Stores user profiles, where userId must match the authenticated user's UID.
+ *  - /users/{userId}/achievements/{achievementId}: Stores achievements for a specific user.
+ *  - All other top-level collections (e.g., /courses, /lessons, /exams): Store publicly readable data.
  *
- * Data Structure:
- * The Firestore database is structured with top-level collections for entities
- * like courses, lessons, modules, questions, exams, and attempts. User-specific
- * data is nested under `/users/{userId}`.
+ *  Key Security Decisions:
+ *  - User listing is implicitly denied.
+ *  - Public read access is granted to most collections, as the focus is on authorization
+ *    rather than complete data hiding in this prototyping phase.
+ *  - No schema validation is performed beyond ensuring relational integrity for ownership.
  *
- * Key Security Decisions:
- * - User listing is disallowed.
- * - Read-only collections are explicitly marked.
- * - The default security posture for ambiguous relationships is strict
- *   owner-only access.
- * - Authorization is performed using helper functions that encapsulate common checks.
+ *  Denormalization for Authorization:
+ *  - User-owned documents enforce that the document ID matches the authenticated user's UID.
  *
- * Denormalization for Authorization:
- * To avoid `get()` calls in rules, authorization-related data (e.g., user roles,
- * ownership) should be denormalized directly onto the documents being secured.
+ *  Structural Segregation:
+ *  - Private user data (profiles, achievements) is stored under the /users/{userId} path for strict access control.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the document.
-     * @param {string} userId The user ID to compare against.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is the existing owner of the document.
-     *  This function requires that the document exists.
-     * @param {string} userId The user ID to compare against.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Enforces document ownership for user profiles.
+     * @description Allows only the authenticated user to read and write their own profile.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' can create their profile.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user123'
-     * @allow (get, update, delete) User with ID 'user123' can read/update/delete their profile.
-     *   - auth.uid: 'user123'
-     * @deny (create) User with ID 'user123' cannot create a profile with userId 'user456'.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user456'
-     * @deny (update, delete) User with ID 'user123' cannot update/delete a profile with userId 'user456'.
-     *   - auth.uid: 'user123'
-     *   - resource.data.userId: 'user456'
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow (create) User with userId matching auth.uid can create their profile.
+     * @allow (get, update, delete) User with userId matching auth.uid can read, update, and delete their profile.
+     * @deny (create, update, delete) User with userId not matching auth.uid cannot create, update, or delete another user's profile.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false; // Listing users is not permitted.
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows public read access to courses, restricts writes.
+     * @description Allows read access to all courses. Writes are allowed for authenticated users.
      * @path /courses/{courseId}
      * @allow (get, list) Any user can read course information.
-     * @deny (create, update, delete) No user can create, update, or delete courses without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete courses.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /courses/{courseId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to lessons, restricts writes.
+     * @description Allows read access to all lessons. Writes are allowed for authenticated users.
      * @path /lessons/{lessonId}
      * @allow (get, list) Any user can read lesson information.
-     * @deny (create, update, delete) No user can create, update, or delete lessons without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete lessons.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /lessons/{lessonId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to modules, restricts writes.
+     * @description Allows read access to all modules. Writes are allowed for authenticated users.
      * @path /modules/{moduleId}
      * @allow (get, list) Any user can read module information.
-     * @deny (create, update, delete) No user can create, update, or delete modules without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete modules.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /modules/{moduleId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to chapters, restricts writes.
+     * @description Allows read access to all chapters. Writes are allowed for authenticated users.
      * @path /chapters/{chapterId}
      * @allow (get, list) Any user can read chapter information.
-     * @deny (create, update, delete) No user can create, update, or delete chapters without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete chapters.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /chapters/{chapterId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to questions, restricts writes.
+     * @description Allows read access to all questions. Writes are allowed for authenticated users.
      * @path /questions/{questionId}
      * @allow (get, list) Any user can read question information.
-     * @deny (create, update, delete) No user can create, update, or delete questions without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete questions.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /questions/{questionId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to exams, restricts writes.
+     * @description Allows read access to all exams. Writes are allowed for authenticated users.
      * @path /exams/{examId}
      * @allow (get, list) Any user can read exam information.
-     * @deny (create, update, delete) No user can create, update, or delete exams without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete exams.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /exams/{examId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Restricts listing attempts, allows owner-only read/write access.
+     * @description Allows read access to all attempts. Writes are allowed for authenticated users.
      * @path /attempts/{attemptId}
-     * @allow (get) User with ID 'user123' can read attempt 'attempt456' if they own it.
-     *   - auth.uid: 'user123'
-     *   - resource.data.userId: 'user123'
-     * @allow (create) User with ID 'user123' can create attempt 'attempt456' if they own it.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user123'
-     * @allow (update, delete) User with ID 'user123' can update/delete attempt 'attempt456' if they own it.
-     *   - auth.uid: 'user123'
-     *   - resource.data.userId: 'user123'
-     * @deny (list) No user can list attempts.
-     * @deny (create) User with ID 'user123' cannot create attempt 'attempt456' with userId 'user456'.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user456'
-     * @deny (update, delete) User with ID 'user123' cannot update/delete attempt 'attempt456' with userId 'user456'.
-     *   - auth.uid: 'user123'
-     *   - resource.data.userId: 'user456'
-     * @principle Enforces document ownership for writes and restricts access to a user's own data.
+     * @allow (get, list) Any user can read attempt information.
+     * @allow (create, update, delete) Authenticated users can create, update and delete attempts.
+     * @deny Non-authenticated users cannot write.
      */
     match /attempts/{attemptId} {
-      allow get: if isSignedIn() && isOwner(resource.data.userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
-      allow update: if isExistingOwner(resource.data.userId);
-      allow delete: if isExistingOwner(resource.data.userId);
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to daily metrics, restricts writes.
+     * @description Allows read access to all daily metrics. Writes are allowed for authenticated users.
      * @path /metrics/daily/{date}
      * @allow (get, list) Any user can read daily metrics.
-     * @deny (create, update, delete) No user can create, update, or delete daily metrics without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete daily metrics.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /metrics/daily/{date} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to course competencies, restricts writes.
+     * @description Allows read access to all course competencies. Writes are allowed for authenticated users.
      * @path /courseCompetencies/{courseCompetencyId}
      * @allow (get, list) Any user can read course competency information.
-     * @deny (create, update, delete) No user can create, update, or delete course competencies without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete course competencies.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /courseCompetencies/{courseCompetencyId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Enforces document ownership for user achievements.
+     * @description Allows only the authenticated user to read and write their own achievements.
      * @path /users/{userId}/achievements/{userAchievementId}
-     * @allow (get) User with ID 'user123' can read their achievement 'achievement456'.
-     *   - auth.uid: 'user123'
-     *   - resource.data.userId: 'user123'
-     * @allow (list) User with ID 'user123' can list their achievements.
-     *   - auth.uid: 'user123'
-     * @allow (create) User with ID 'user123' can create their achievement 'achievement456'.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user123'
-     * @allow (update, delete) User with ID 'user123' can update/delete their achievement 'achievement456'.
-     *   - auth.uid: 'user123'
-     *   - resource.data.userId: 'user123'
-     * @deny (create) User with ID 'user123' cannot create achievement 'achievement456' with userId 'user456'.
-     *   - auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user456'
-     * @deny (update, delete) User with ID 'user123' cannot update/delete achievement 'achievement456' with userId 'user456'.
-     *   - auth.uid: 'user123'
-     *   - resource.data.userId: 'user456'
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow (create) User with userId matching auth.uid can create their achievement.
+     * @allow (get, update, delete) User with userId matching auth.uid can read, update, and delete their own achievement.
+     * @deny (create, update, delete) User with userId not matching auth.uid cannot create, update, or delete another user's achievement.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId}/achievements/{userAchievementId} {
-      allow get: if isOwner(userId) && isOwner(resource.data.userId);
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && isOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId) && isOwner(resource.data.userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows public read access to master courses, restricts writes.
+     * @description Allows read access to all master courses. Writes are allowed for authenticated users.
      * @path /masterCourses/{masterCourseId}
      * @allow (get, list) Any user can read master course information.
-     * @deny (create, update, delete) No user can create, update, or delete master courses without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete master courses.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /masterCourses/{masterCourseId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to master certificates, restricts writes.
+     * @description Allows read access to all master certificates. Writes are allowed for authenticated users.
      * @path /masterCertificates/{masterCertificateId}
      * @allow (get, list) Any user can read master certificate information.
-     * @deny (create, update, delete) No user can create, update, or delete master certificates without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete master certificates.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /masterCertificates/{masterCertificateId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
-   /**
-     * @description Allows public read access to roadmaps, restricts writes.
+    /**
+     * @description Allows read access to all roadmaps. Writes are allowed for authenticated users.
      * @path /roadmaps/{roadmapId}
      * @allow (get, list) Any user can read roadmap information.
-     * @deny (create, update, delete) No user can create, update, or delete roadmaps without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete roadmaps.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /roadmaps/{roadmapId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to schedules, restricts writes.
+     * @description Allows read access to all schedules. Writes are allowed for authenticated users.
      * @path /schedules/{scheduleId}
      * @allow (get, list) Any user can read schedule information.
-     * @deny (create, update, delete) No user can create, update, or delete schedules without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete schedules.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /schedules/{scheduleId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
 
     /**
-     * @description Allows public read access to quizzes, restricts writes.
+     * @description Allows read access to all quizzes. Writes are allowed for authenticated users.
      * @path /quizzes/{quizId}
      * @allow (get, list) Any user can read quiz information.
-     * @deny (create, update, delete) No user can create, update, or delete quizzes without explicit authorization logic. // TODO
-     * @principle Public read access with restricted writes.
+     * @allow (create, update, delete) Authenticated users can create, update and delete quizzes.
+     * @deny Non-authenticated users cannot write.
+     * @principle Grants public read access with authenticated-user-only writes.
      */
     match /quizzes/{quizId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create, update, delete: if isSignedIn();
     }
   }
 }
