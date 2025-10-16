@@ -1,377 +1,294 @@
 /**
- * @file Firestore Security Rules for ExamplifyAI
- * @version Prototype - Strict authorization with flexible data shapes.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for user profiles and achievements.
+ *  All other collections are publicly readable but writable only by authenticated users, allowing
+ *  for rapid prototyping without strict schema enforcement.
  *
- * @Core Philosophy: This ruleset prioritizes strong authorization based on user roles and ownership while minimizing data validation to allow for rapid prototyping.  Schema enforcement is intentionally light.
- * @Data Structure: The Firestore data model includes top-level collections for Courses, Lessons, Exams, Questions, etc., and user-specific subcollections under `/users/{userId}`.
- * @Key Security Decisions:
- *  - User data under `/users/{userId}` is strictly controlled, accessible only to the owning user and admins.
- *  - Public read access is granted to Courses, Lessons, Exams and Questions collections to facilitate open content browsing. Writes to these collections are restricted to signed-in users.
- *  - Attempts collection now uses correct user-based ownership.
- * @Denormalization for Authorization: The 'Attempt' entity contains a `userId` field to facilitate ownership checks, preventing the need for complex queries.
- * @Structural Segregation: User-specific private data (e.g., achievements) is stored in subcollections under `/users/{userId}`, separate from public data.
+ * Data Structure:
+ * - User profiles are stored under `/users/{userId}`, accessible only by the user themselves.
+ * - User achievements are stored under `/users/{userId}/achievements/{achievementId}`, accessible only by the user.
+ * - All other collections (courses, lessons, modules, chapters, questions, exams, attempts, etc.) are stored at the top level.
+ *
+ * Key Security Decisions:
+ * - User listing is disabled for security.
+ * - Read-only collections (e.g., metrics) are not explicitly defined but could be easily implemented.
+ * - Default security posture for ambiguous relationships is owner-only access.
+ * - Public read access to most collections facilitates data exploration during prototyping.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ==================== Helper Functions ====================
+    /**
+     * @description Checks if the current user is signed in.
+     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-      return isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // ==================== Users Collection ====================
     /**
-     * @description Controls access to user profiles. Only the user and admins can read/write their own profile data.
+     * @description Checks if the current user is the owner of the document.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the current user is the owner of an existing document.
+     */
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Enforces that a field cannot be changed after creation.
+     */
+    function isImmutable(fieldName) {
+        return request.resource.data[fieldName] == resource.data[fieldName];
+    }
+
+    /**
+     * @description Rules for the /users/{userId} collection.
      * @path /users/{userId}
-     * @allow (get, update, delete) if request.auth.uid == userId: Allows the user to read, update, and delete their own profile.
-     * @allow (create) if request.auth.uid == userId: Allows a user to create their profile during sign-up.
-     * @deny (get, update, delete) if request.auth.uid != userId: Denies access to other users' profiles.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create) User with ID 'user123' can create their profile.
+     *   auth: { uid: 'user123' }, request.resource.data: { userId: 'user123', ... }
+     * @deny (create) User with ID 'user123' cannot create a profile for 'user456'.
+     *   auth: { uid: 'user123' }, request.resource.data: { userId: 'user456', ... }
+     * @principle Enforces user-ownership for profile data.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if false; // Prevent listing all users
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isOwner(userId) || isAdmin();
-
-      // ==================== User Achievements Sub-collection ====================
-      /**
-       * @description Restricts access to user achievements. Only the owner and admins can read/write.
-       * @path /users/{userId}/achievements/{achievementId}
-       * @allow (read, write) if request.auth.uid == userId: Allows the user to read and write their own achievements.
-       * @deny (read, write) if request.auth.uid != userId: Denies access to other users' achievements.
-       * @principle Restricts access to a user's own data tree.
-       */
-      match /achievements/{achievementId} {
-        allow get: if isOwner(userId);
-        allow list: if false;
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
-      }
-
-      // ==================== User Settings Sub-collection ====================
-      /**
-       * @description Restricts access to user settings. Only the owner can read/write.
-       * @path /users/{userId}/settings/{settingId}
-       * @allow (read, write) if request.auth.uid == userId: Allows the user to read and write their own settings.
-       * @deny (read, write) if request.auth.uid != userId: Denies access to other users' settings.
-       * @principle Restricts access to a user's own data tree.
-       */
-      match /settings/{settingId} {
-        allow get: if isOwner(userId);
-        allow list: if false;
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
-      }
-
-      // ==================== User Progress Sub-collection ====================
-      /**
-       * @description Restricts access to user progress. Only the owner can read/write.
-       * @path /users/{userId}/progress/{progressId}
-       * @allow (read, write) if request.auth.uid == userId: Allows the user to read and write their own progress.
-       * @deny (read, write) if request.auth.uid != userId: Denies access to other users' progress.
-       * @principle Restricts access to a user's own data tree.
-       */
-      match /progress/{progressId} {
-        allow get: if isOwner(userId);
-        allow list: if false;
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId);
-      }
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && isImmutable('userId');
+      allow delete: if isExistingOwner(userId);
     }
 
-    // ==================== Courses Collection ====================
     /**
-     * @description Allows public read access to course information, but restricts write access to signed-in users.
+     * @description Rules for the /courses/{courseId} collection.
      * @path /courses/{courseId}
-     * @allow (get, list) if true: Allows anyone to read course data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify course data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read course data.
+     * @allow (create) Any authenticated user can create course data.
+     * @deny (create) Unauthenticated user cannot create course data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /courses/{courseId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-    // ==================== Lessons Collection ====================
     /**
-     * @description Allows public read access to lesson information, but restricts write access to signed-in users.
+     * @description Rules for the /lessons/{lessonId} collection.
      * @path /lessons/{lessonId}
-     * @allow (get, list) if true: Allows anyone to read lesson data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify lesson data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read lesson data.
+     * @allow (create) Any authenticated user can create lesson data.
+     * @deny (create) Unauthenticated user cannot create lesson data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /lessons/{lessonId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-    // ==================== Modules Collection ====================
     /**
-     * @description Allows public read access to module information, but restricts write access to signed-in users.
+     * @description Rules for the /modules/{moduleId} collection.
      * @path /modules/{moduleId}
-     * @allow (get, list) if true: Allows anyone to read module data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify module data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read module data.
+     * @allow (create) Any authenticated user can create module data.
+     * @deny (create) Unauthenticated user cannot create module data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /modules/{moduleId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-    // ==================== Chapters Collection ====================
     /**
-     * @description Allows public read access to chapter information, but restricts write access to signed-in users.
+     * @description Rules for the /chapters/{chapterId} collection.
      * @path /chapters/{chapterId}
-     * @allow (get, list) if true: Allows anyone to read chapter data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify chapter data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read chapter data.
+     * @allow (create) Any authenticated user can create chapter data.
+     * @deny (create) Unauthenticated user cannot create chapter data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /chapters/{chapterId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-    // ==================== Questions Collection ====================
     /**
-     * @description Allows public read access to question information, but restricts write access to signed-in users.
-     * @path /questions/{questionId}
-     * @allow (get, list) if true: Allows anyone to read question data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify question data.
-     * @principle Provides public read access while restricting writes.
+     * @description Rules for the /questions collection.
+     * @path /questions
+     * @allow (get) Any user can read question data.
+     * @allow (create) Any authenticated user can create question data.
+     * @deny (create) Unauthenticated user cannot create question data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /questions/{questionId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-    // ==================== Exams Collection ====================
     /**
-     * @description Allows public read access to exam information, but restricts write access to signed-in users.
+     * @description Rules for the /exams/{examId} collection.
      * @path /exams/{examId}
-     * @allow (get, list) if true: Allows anyone to read exam data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify exam data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read exam data.
+     * @allow (create) Any authenticated user can create exam data.
+     * @deny (create) Unauthenticated user cannot create exam data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /exams/{examId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-    // ==================== Attempts Collection ====================
     /**
-     * @description Controls access to exam attempts.  Users can only create attempts for themselves, and can only read/write their own attempts.
+     * @description Rules for the /attempts/{attemptId} collection.
      * @path /attempts/{attemptId}
-     * @allow (get) if request.auth.uid == resource.data.userId: Allows a user to read their own attempt.
-     * @allow (create) if request.auth.uid == request.resource.data.userId: Allows a user to create an attempt for themselves.
-     * @allow (update, delete) if request.auth.uid == resource.data.userId: Allows a user to update/delete their own attempt.
-     * @deny (get, create, update, delete) if request.auth.uid != resource.data.userId: Denies access to other users' attempts.
-     * @principle Enforces document ownership for exam attempts.
+     * @allow (get) Any user can read attempt data.
+     * @allow (create) Any authenticated user can create attempt data.
+     * @deny (create) Unauthenticated user cannot create attempt data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /attempts/{attemptId} {
-        allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-        allow list: if false;
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
-        allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-    // ==================== Metrics Collection ====================
     /**
-     * @description Controls access to daily metrics.  Currently allows any signed-in user to read, and any signed-in user to create.
+     * @description Rules for the /metrics/daily/{date} collection.
      * @path /metrics/daily/{date}
-     * @allow (get, list) if isSignedIn(): Allows a user to read the daily metrics.
-     * @allow (create) if isSignedIn(): Allows a user to create the daily metrics.
-     * @principle Requires authentication for reading and creating metrics.
+     * @allow (get) Any user can read daily metrics.
+     * @allow (create) Any authenticated user can create daily metrics.
+     * @deny (create) Unauthenticated user cannot create daily metrics.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
-    match /metrics/{metricType} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
+    match /metrics/daily/{date} {
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-
-      match /daily/{date} {
-        allow get: if isSignedIn();
-        allow list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-       match /monthly/{month} {
-        allow get: if isSignedIn();
-        allow list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-   // ==================== Course Competencies Collection ====================
     /**
-     * @description Allows public read access to course competencies, but restricts write access to signed-in users.
+     * @description Rules for the /courseCompetencies/{courseCompetencyId} collection.
      * @path /courseCompetencies/{courseCompetencyId}
-     * @allow (get, list) if true: Allows anyone to read course competency data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify course competency data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read course competency data.
+     * @allow (create) Any authenticated user can create course competency data.
+     * @deny (create) Unauthenticated user cannot create course competency data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
-   match /courseCompetencies/{competencyId} {
-      allow get: if true;
-      allow list: if true;
+    match /courseCompetencies/{courseCompetencyId} {
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-     // ==================== Master Courses Collection ====================
     /**
-     * @description Allows public read access to master courses, but restricts write access to signed-in users.
+     * @description Rules for the /users/{userId}/achievements/{userAchievementId} collection.
+     * @path /users/{userId}/achievements/{userAchievementId}
+     * @allow (create) User with ID 'user123' can create their own achievement.
+     *   auth: { uid: 'user123' }
+     * @deny (create) User with ID 'user123' cannot create an achievement for 'user456'.
+     *   auth: { uid: 'user123' }
+     * @principle Enforces user-ownership for achievement data.
+     */
+    match /users/{userId}/achievements/{userAchievementId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for the /masterCourses/{masterCourseId} collection.
      * @path /masterCourses/{masterCourseId}
-     * @allow (get, list) if true: Allows anyone to read master course data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify master course data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read master course data.
+     * @allow (create) Any authenticated user can create master course data.
+     * @deny (create) Unauthenticated user cannot create master course data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /masterCourses/{masterCourseId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-
-         // ✅ Master Course Lessons Sub-collection
-      match /lessons/{lessonId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-    // ==================== Master Certificates Collection ====================
     /**
-     * @description Allows public read access to master certificates, but restricts write access to signed-in users.
+     * @description Rules for the /masterCertificates/{masterCertificateId} collection.
      * @path /masterCertificates/{masterCertificateId}
-     * @allow (get, list) if true: Allows anyone to read master certificate data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify master certificate data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read master certificate data.
+     * @allow (create) Any authenticated user can create master certificate data.
+     * @deny (create) Unauthenticated user cannot create master certificate data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /masterCertificates/{masterCertificateId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-     // ==================== Roadmaps Collection ====================
     /**
-     * @description Allows public read access to roadmaps, but restricts write access to signed-in users.
+     * @description Rules for the /roadmaps/{roadmapId} collection.
      * @path /roadmaps/{roadmapId}
-     * @allow (get, list) if true: Allows anyone to read roadmap data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify roadmap data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read roadmap data.
+     * @allow (create) Any authenticated user can create roadmap data.
+     * @deny (create) Unauthenticated user cannot create roadmap data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /roadmaps/{roadmapId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-
-      // ✅ Roadmap Milestones Sub-collection
-      match /milestones/{milestoneId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-     // ==================== Schedules Collection ====================
     /**
-     * @description Allows public read access to schedules, but restricts write access to signed-in users.
+     * @description Rules for the /schedules/{scheduleId} collection.
      * @path /schedules/{scheduleId}
-     * @allow (get, list) if true: Allows anyone to read schedule data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify schedule data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read schedule data.
+     * @allow (create) Any authenticated user can create schedule data.
+     * @deny (create) Unauthenticated user cannot create schedule data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /schedules/{scheduleId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
 
-     // ==================== Quizzes Collection ====================
     /**
-     * @description Allows public read access to quizzes, but restricts write access to signed-in users.
+     * @description Rules for the /quizzes/{quizId} collection.
      * @path /quizzes/{quizId}
-     * @allow (get, list) if true: Allows anyone to read quiz data.
-     * @allow (create, update, delete) if isSignedIn(): Allows signed-in users to modify quiz data.
-     * @principle Provides public read access while restricting writes.
+     * @allow (get) Any user can read quiz data.
+     * @allow (create) Any authenticated user can create quiz data.
+     * @deny (create) Unauthenticated user cannot create quiz data.
+     * @principle Allows public read access with authenticated writes for prototyping.
      */
     match /quizzes/{quizId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-
-      // ✅ Quiz Questions Sub-collection
-      match /questions/{questionId} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
-      }
-
-      // ✅ Quiz Submissions Sub-collection
-        match /submissions/{submissionId} {
-        allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-        allow list: if false;
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update: if isSignedIn() && resource.data.userId == request.auth.uid || isAdmin();
-        allow delete: if isAdmin();
-      }
+      allow update: if isSignedIn() && resource != null;
+      allow delete: if isSignedIn() && resource != null;
     }
   }
 }
