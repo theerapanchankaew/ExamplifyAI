@@ -2,7 +2,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -22,6 +22,11 @@ function ReportsContent() {
   const { user } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
+  // Fetch the current user's profile to check their role
+  const userProfileDocRef = useMemoFirebase(() => (firestore && user) ? where("userId", "==", user.uid) : null, [firestore, user]);
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileDocRef);
+  const isAdmin = userProfile?.role === 'admin';
+
   const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
@@ -32,37 +37,21 @@ function ReportsContent() {
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     
-    let q = query(collection(firestore, 'attempts'));
-
-    // Non-admins can only see their own attempts
-    // This query will fail for non-admins if they don't have the rule for it.
-    // The security rule is: allow read: if isSignedIn() && (resource.data.userId == request.auth.uid);
-    // However, for list operations, you need a where clause.
-    // Let's assume non-admins should only query their own data.
-    // We will add a guard for this page later. For now, let's make the query conditional.
-    // A better approach is to have a separate view for student vs admin reports.
-    // But for now, we just filter the query.
-    // Let's assume a user with role 'admin' is an admin.
-    // This check is imperfect on the client, but it's a start.
-    
-    // The main issue is that `list` is admin-only. So a non-admin CANNOT list all attempts.
-    // They MUST query with their UID.
-
     const baseQuery = collection(firestore, 'attempts');
     const queries = [];
 
-    // This is a client-side check. A truly secure app relies on Firestore rules.
-    // We assume non-admin users should only see their own attempts.
-    if (user) { // Always filter by user for non-admins
+    // If the user is not an admin, they can only see their own attempts.
+    if (!isAdmin) {
         queries.push(where('userId', '==', user.uid));
     }
     
+    // Admins can filter by course, or see all. Non-admins' views are also filtered by course.
     if (selectedCourseId !== 'all') {
       queries.push(where('courseId', '==', selectedCourseId));
     }
 
     return query(baseQuery, ...queries);
-  }, [firestore, user, selectedCourseId]);
+  }, [firestore, user, isAdmin, selectedCourseId]);
 
   const { data: attempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
@@ -105,7 +94,7 @@ function ReportsContent() {
   }, [attempts, usersMap]);
 
 
-  const isLoading = coursesLoading || attemptsLoading || usersLoading;
+  const isLoading = coursesLoading || attemptsLoading || usersLoading || isProfileLoading;
   
    if (attemptsError) {
         return (
@@ -212,5 +201,3 @@ export default function ReportsPage() {
     </AdminAuthGuard>
   )
 }
-
-    
