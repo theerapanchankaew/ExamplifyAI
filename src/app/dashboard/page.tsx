@@ -255,10 +255,9 @@ export default function DashboardPage() {
   const firestore = useFirestore();
   const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
   
-  const [isAdminReady, setIsAdminReady] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
-  
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
     return doc(firestore, 'users', authUser.uid);
@@ -268,37 +267,40 @@ export default function DashboardPage() {
   
   useEffect(() => {
     const verifyAdminStatus = async () => {
+      // Don't do anything until both auth and profile are loaded
       if (isAuthUserLoading || isProfileLoading) {
         return; 
       }
       
+      // If no user or profile, they are not an admin.
       if (!authUser || !userProfile) {
-        setIsAdminReady(false);
+        setIsAdmin(false);
         setIsCheckingAdmin(false);
         return;
       }
 
       if (userProfile.role === 'admin') {
         try {
+          // Force refresh the token to get the latest custom claims
+          await authUser.getIdToken(true);
           const tokenResult = await authUser.getIdTokenResult();
-          if (tokenResult.claims.role !== 'admin') {
-            await authUser.getIdToken(true);
-            const refreshedTokenResult = await authUser.getIdTokenResult();
-            if (refreshedTokenResult.claims.role === 'admin') {
-                setIsAdminReady(true);
-            } else {
-                 setIsAdminReady(false);
-            }
+          
+          if (tokenResult.claims.role === 'admin') {
+             setIsAdmin(true);
           } else {
-             setIsAdminReady(true);
+             // Firestore says admin, but token doesn't. They are not a verified admin.
+             setIsAdmin(false);
           }
         } catch (error) {
           console.error("Error verifying admin token:", error);
-          setIsAdminReady(false);
+          setIsAdmin(false);
         }
       } else {
-        setIsAdminReady(false);
+        // Not an admin based on Firestore role
+        setIsAdmin(false);
       }
+
+      // Finished checking
       setIsCheckingAdmin(false);
     };
     
@@ -314,7 +316,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (isAdminReady) {
+  if (isAdmin && userProfile?.role === 'admin') {
     return <AdminDashboardContent />;
   }
 
