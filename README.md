@@ -8,7 +8,7 @@ To get started, take a look at src/app/page.tsx.
 
 After the app is generated, you need to set the admin user.
 
-1. Create an account for `admin@masci.com` through the sign-up page in the app.
+1. Create an account for `theerapan@masci.com` through the sign-up page in the app.
 2. Open a new terminal in your workspace.
 3. Run the following command to set the admin custom claim:
 
