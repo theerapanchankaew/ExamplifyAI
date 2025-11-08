@@ -192,8 +192,8 @@ export default function ModulesPage() {
                 ))}
              </Accordion>
           ) : (
-            <PlaceholderContent 
-                icon={<Layers className="mx-auto h-12 w-12" />}
+             <PlaceholderContent 
+                icon={Layers}
                 title="No Modules Found"
                 description="Create courses via the 'Add Course' page to generate lessons and modules."
             />
