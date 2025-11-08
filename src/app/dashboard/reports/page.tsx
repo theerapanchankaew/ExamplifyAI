@@ -38,25 +38,30 @@ function ReportsContent() {
   const usersMap = useMemo(() => new Map(users?.map(u => [u.userId, u])), [users]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    if (isProfileLoading) return null;
-
-    const baseQuery = collection(firestore, 'attempts');
+    if (!firestore || isUserLoading || isProfileLoading) return null;
     
+    const baseQuery = collection(firestore, 'attempts');
+
     if (isAdmin) {
-        if (selectedCourseId !== 'all') {
-            return query(baseQuery, where('courseId', '==', selectedCourseId));
-        }
-        return baseQuery;
+      if (selectedCourseId !== 'all') {
+        return query(baseQuery, where('courseId', '==', selectedCourseId));
+      }
+      return baseQuery;
     }
     
+    // For non-admin users
     if (!user) return null;
+
+    const queries = [];
+    queries.push(where('userId', '==', user.uid));
     
     if (selectedCourseId !== 'all') {
-        return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
+      queries.push(where('courseId', '==', selectedCourseId));
     }
-    return query(baseQuery, where('userId', '==', user.uid));
     
-  }, [firestore, user, isAdmin, isProfileLoading, selectedCourseId]);
+    return query(baseQuery, ...queries);
+    
+  }, [firestore, user, isAdmin, isUserLoading, isProfileLoading, selectedCourseId]);
 
 
   const { data: attempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
@@ -100,7 +105,7 @@ function ReportsContent() {
   }, [attempts, usersMap]);
 
 
-  const isLoading = coursesLoading || attemptsLoading || usersLoading || isProfileLoading;
+  const isLoading = coursesLoading || attemptsLoading || usersLoading || isProfileLoading || isUserLoading;
   
    if (attemptsError) {
         return (
