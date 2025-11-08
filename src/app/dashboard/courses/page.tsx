@@ -77,21 +77,28 @@ function CoursesContent() {
         // 2. Find and delete associated lessons, modules, chapters, and exams
         const lessonsQuery = query(collection(firestore, 'lessons'), where('courseId', '==', courseId));
         const lessonsSnapshot = await getDocs(lessonsQuery);
-        const lessonIds = lessonsSnapshot.docs.map(d => d.id);
+        
+        if (!lessonsSnapshot.empty) {
+            const lessonIds = lessonsSnapshot.docs.map(d => d.id);
 
-        if (lessonIds.length > 0) {
-            const modulesQuery = query(collection(firestore, 'modules'), where('lessonId', 'in', lessonIds));
-            const modulesSnapshot = await getDocs(modulesQuery);
-            const moduleIds = modulesSnapshot.docs.map(d => d.id);
+            // Find and delete chapters associated with modules of the lessons
+            if (lessonIds.length > 0) {
+                const modulesQuery = query(collection(firestore, 'modules'), where('lessonId', 'in', lessonIds));
+                const modulesSnapshot = await getDocs(modulesQuery);
 
-            if (moduleIds.length > 0) {
-                const chaptersQuery = query(collection(firestore, 'chapters'), where('moduleId', 'in', moduleIds));
-                const chaptersSnapshot = await getDocs(chaptersQuery);
-                chaptersSnapshot.docs.forEach(d => batch.delete(d.ref));
+                if (!modulesSnapshot.empty) {
+                    const moduleIds = modulesSnapshot.docs.map(d => d.id);
+                    
+                    const chaptersQuery = query(collection(firestore, 'chapters'), where('moduleId', 'in', moduleIds));
+                    const chaptersSnapshot = await getDocs(chaptersQuery);
+                    chaptersSnapshot.docs.forEach(d => batch.delete(d.ref));
+                }
+                // Delete modules
+                modulesSnapshot.docs.forEach(d => batch.delete(d.ref));
             }
-            modulesSnapshot.docs.forEach(d => batch.delete(d.ref));
+            // Delete lessons
+            lessonsSnapshot.docs.forEach(d => batch.delete(d.ref));
         }
-        lessonsSnapshot.docs.forEach(d => batch.delete(d.ref));
         
         // 3. Find and delete associated exams
         const examsQuery = query(collection(firestore, 'exams'), where('courseId', '==', courseId));
