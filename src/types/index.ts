@@ -26,6 +26,12 @@ export type Attempt = {
     answers?: Record<string, string>;
 };
 
+export type CourseAchievement = {
+    id: string;
+    courseId: string;
+    pair: string;
+};
+
 export type { Roadmap } from './roadmap';
 export type { Module } from './module';
 export type { Chapter } from './chapter';

@@ -70,6 +70,11 @@ service cloud.firestore {
       allow read: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow write: if isAdmin();
+      // NOTE: There is no `list` rule here. This is intentional.
+      // Firestore's `list` rule applies to collection group queries and broad collection reads.
+      // By omitting it, we force clients to make targeted queries.
+      // A query like `collection('attempts').where('userId', '==', request.auth.uid)`
+      // is secured by the `read` rule on each document it tries to access.
     }
 
 
@@ -78,7 +83,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /courseCompetencies/{courseCompetencyId} {
+    match /courseAchievements/{courseAchievementId} {
       allow read: if true;
       allow write: if isAdmin();
     }

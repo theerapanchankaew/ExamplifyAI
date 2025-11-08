@@ -17,13 +17,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import type { UserProfile } from '@/types';
+import type { UserProfile, CourseAchievement } from '@/types';
 import Webcam from 'react-webcam';
 
 // Matches backend.json entities
 type Exam = { id: string; courseId: string; questionIds: string[] };
 type Question = { id: string; stem: string; options: string[]; correctAnswer: string };
-type CourseAchievement = { id: string; courseId: string; pair: string; }
+
 
 export default function ExamPage() {
   const params = useParams();
