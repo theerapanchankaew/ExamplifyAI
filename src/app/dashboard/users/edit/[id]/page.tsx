@@ -27,7 +27,7 @@ const formSchema = z.object({
   email: z.string().email(),
   role: z.enum(['admin', 'instructor', 'student', 'examinee']),
   cabTokens: z.coerce.number().int().min(0, 'CAB tokens cannot be negative.'),
-  mandatoryLearningPath: z.string().optional(), // Can be empty string
+  mandatoryLearningPath: z.string().optional(), // Can be empty string for 'None'
 });
 
 function EditUserContent() {

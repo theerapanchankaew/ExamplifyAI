@@ -11,7 +11,6 @@ export type UserProfile = {
   cabTokens?: number;
   enrolledCourseIds?: string[];
   mandatoryLearningPath?: string[];
-  voluntaryLearningPath?: string[];
   avatarUrl?: string;
 };
 

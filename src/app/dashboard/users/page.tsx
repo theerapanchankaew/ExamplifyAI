@@ -6,7 +6,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, deleteDoc } from 'firebase/firestore';
-import type { UserProfile } from '@/types';
+import type { UserProfile, Roadmap } from '@/types';
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, Gem, Trash2, Edit } from 'lucide-react';
+import { Loader2, Users, Gem, Trash2, Edit, Waypoints } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { PlaceholderContent } from '@/components/placeholder-content';
 import { Button } from '@/components/ui/button';
@@ -59,6 +59,16 @@ function AdminUsersContent() {
         return collection(firestore, 'users');
     }, [firestore]);
     const { data: users, isLoading: usersIsLoading } = useCollection<UserProfile>(usersQuery);
+
+    const roadmapsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'roadmaps') : null, [firestore]);
+    const { data: roadmaps, isLoading: roadmapsLoading } = useCollection<Roadmap>(roadmapsQuery);
+
+    const roadmapsMap = useMemo(() => {
+        if (!roadmaps) return new Map();
+        return new Map(roadmaps.map(r => [r.id, r.title]));
+    }, [roadmaps]);
+
+    const isLoading = usersIsLoading || roadmapsLoading;
 
     const getAvatarForUser = (user: UserProfile, index: number) => {
         const imageId = user.role === 'admin' ? 'user-avatar-1' : `student-avatar-${(index % 1) + 1}`;
@@ -130,7 +140,7 @@ function AdminUsersContent() {
                     <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold font-headline">{usersIsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : users?.length ?? '0'}</div>
+                    <div className="text-2xl font-bold font-headline">{isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : users?.length ?? '0'}</div>
                     <p className="text-xs text-muted-foreground">all users in the system</p>
                 </CardContent>
             </Card>
@@ -142,7 +152,7 @@ function AdminUsersContent() {
                 </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {usersIsLoading ? (
+                    {isLoading ? (
                         <div className="flex h-64 items-center justify-center">
                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         </div>
@@ -151,10 +161,11 @@ function AdminUsersContent() {
                             <Table>
                                 <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-[300px]">User</TableHead>
+                                    <TableHead>User</TableHead>
                                     <TableHead>Email</TableHead>
                                     <TableHead>Role</TableHead>
                                     <TableHead>CAB Tokens</TableHead>
+                                    <TableHead>Mandatory Roadmap</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                                 </TableHeader>
@@ -162,6 +173,8 @@ function AdminUsersContent() {
                                 {users && users.length > 0 ? (
                                     users.map((user, index) => {
                                     const avatar = getAvatarForUser(user, index);
+                                    const roadmapId = user.mandatoryLearningPath?.[0];
+                                    const roadmapTitle = roadmapId ? roadmapsMap.get(roadmapId) : null;
                                     return (
                                         <TableRow key={user.userId}>
                                         <TableCell>
@@ -185,6 +198,16 @@ function AdminUsersContent() {
                                                 <span>{user.cabTokens ?? 0}</span>
                                             </div>
                                         </TableCell>
+                                        <TableCell>
+                                            {roadmapTitle ? (
+                                                <div className="flex items-center gap-2 text-xs">
+                                                   <Waypoints className="h-4 w-4 text-muted-foreground" />
+                                                   <span>{roadmapTitle}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">None</span>
+                                            )}
+                                        </TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="ghost" size="icon" onClick={() => handleEditClick(user.userId)}>
                                                 <Edit className="h-4 w-4" />
@@ -204,7 +227,7 @@ function AdminUsersContent() {
                                     })
                                 ) : (
                                     <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
+                                    <TableCell colSpan={6} className="h-24 text-center">
                                         No users found.
                                     </TableCell>
                                     </TableRow>
