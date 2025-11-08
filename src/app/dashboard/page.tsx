@@ -1,11 +1,12 @@
 
 'use client';
 
-import { AdminAuthGuard } from "@/components/admin-auth-guard";
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, query, limit, orderBy, where, Timestamp } from 'firebase/firestore';
+import { collection, query, limit, orderBy, where, Timestamp, doc } from 'firebase/firestore';
 import { useState, type ReactNode, useMemo, useEffect } from 'react';
-import type { UserProfile, Attempt, Course, Lesson } from '@/types';
+import type { UserProfile, Attempt } from '@/types';
+import type { Course } from '@/types/course';
+import type { Lesson } from '@/types/lesson';
 import { Loader2, BookOpen, Activity, Percent, Users as UsersIcon, Book } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { subDays, format, startOfDay } from 'date-fns';
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { PlaceholderContent } from "@/components/placeholder-content";
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 
 const chartConfig = {
@@ -51,7 +53,7 @@ function AdminDashboardContent() {
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     
     const attemptsQuery = useMemoFirebase(() => {
-        // Wait until we know the user's role
+        // Defer query creation until we know the user's role
         if (!firestore || isAuthUserLoading || isProfileLoading) return null;
         
         const baseQuery = collection(firestore, 'attempts');
@@ -216,41 +218,45 @@ function AdminDashboardContent() {
                         <CardTitle>Recent Users</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                            <TableRow>
-                                <TableHead>User</TableHead>
-                                <TableHead>Email</TableHead>
-                                <TableHead>Role</TableHead>
-                            </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                            {recentUsers && recentUsers.map((user, index) => {
-                                const avatar = getAvatarForUser(user, index);
-                                return (
-                                <TableRow key={user.userId}>
-                                    <TableCell>
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-9 w-9">
-                                        <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
-                                        <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
-                                        </Avatar>
-                                        <span className="font-medium truncate w-32">{user.name}</span>
-                                    </div>
-                                    </TableCell>
-                                    <TableCell><div className="truncate w-40">{user.email}</div></TableCell>
-                                    <TableCell>
-                                    <Badge variant={getRoleVariant(user.role)}>
-                                        {user.role || 'N/A'}
-                                        </Badge>
-                                    </TableCell>
+                        {isAdmin ? (
+                            <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                <TableRow>
+                                    <TableHead>User</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead>Role</TableHead>
                                 </TableRow>
-                                )
-                                })}
-                            </TableBody>
-                        </Table>
-                        </div>
+                                </TableHeader>
+                                <TableBody>
+                                {recentUsers && recentUsers.map((user, index) => {
+                                    const avatar = getAvatarForUser(user, index);
+                                    return (
+                                    <TableRow key={user.userId}>
+                                        <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-9 w-9">
+                                            <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
+                                            <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
+                                            </Avatar>
+                                            <span className="font-medium truncate w-32">{user.name}</span>
+                                        </div>
+                                        </TableCell>
+                                        <TableCell><div className="truncate w-40">{user.email}</div></TableCell>
+                                        <TableCell>
+                                        <Badge variant={getRoleVariant(user.role)}>
+                                            {user.role || 'N/A'}
+                                            </Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                    )
+                                    })}
+                                </TableBody>
+                            </Table>
+                            </div>
+                        ): (
+                            <p className="text-sm text-muted-foreground">User list is only visible to administrators.</p>
+                        )}
                     </CardContent>
                  </Card>
             </div>
@@ -265,3 +271,5 @@ export default function DashboardPage() {
     </AdminAuthGuard>
   );
 }
+
+    

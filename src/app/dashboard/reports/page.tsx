@@ -45,18 +45,22 @@ function ReportsContent() {
 
     if (isAdmin) {
       if (selectedCourseId !== 'all') {
+        // Admin, course selected
         return query(baseQuery, where('courseId', '==', selectedCourseId));
       }
-      return baseQuery; // Admin gets all attempts
+      // Admin, all courses
+      return baseQuery;
     }
     
     // For non-admin users, we must have a user object to query by their UID
     if (!user) return null;
 
     if (selectedCourseId !== 'all') {
+       // Non-admin, course selected
       return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
     }
     
+    // Non-admin, all courses
     return query(baseQuery, where('userId', '==', user.uid));
     
   }, [firestore, user, isAdmin, isUserLoading, isProfileLoading, selectedCourseId]);
@@ -216,3 +220,5 @@ export default function ReportsPage() {
     </AdminAuthGuard>
   );
 }
+
+    
