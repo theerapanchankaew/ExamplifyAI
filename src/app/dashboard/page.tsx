@@ -283,8 +283,15 @@ export default function DashboardPage() {
           const tokenResult = await authUser.getIdTokenResult();
           if (tokenResult.claims.role !== 'admin') {
             await authUser.getIdToken(true);
+            const refreshedTokenResult = await authUser.getIdTokenResult();
+            if (refreshedTokenResult.claims.role === 'admin') {
+                setIsAdminReady(true);
+            } else {
+                 setIsAdminReady(false);
+            }
+          } else {
+             setIsAdminReady(true);
           }
-          setIsAdminReady(true);
         } catch (error) {
           console.error("Error verifying admin token:", error);
           setIsAdminReady(false);

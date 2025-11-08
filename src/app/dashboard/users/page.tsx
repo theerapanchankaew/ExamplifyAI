@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -267,12 +268,17 @@ export default function UsersPage() {
       if (userProfile.role === 'admin') {
         try {
           const tokenResult = await authUser.getIdTokenResult();
-          // Force refresh if the custom claim isn't set in the token
           if (tokenResult.claims.role !== 'admin') {
             await authUser.getIdToken(true); 
+            const refreshedTokenResult = await authUser.getIdTokenResult();
+            if (refreshedTokenResult.claims.role === 'admin') {
+                setIsAdminReady(true);
+            } else {
+                setIsAdminReady(false);
+            }
+          } else {
+             setIsAdminReady(true);
           }
-          // Now the token is refreshed and admin is ready
-          setIsAdminReady(true);
         } catch (error) {
           console.error("Error verifying admin token:", error);
           setIsAdminReady(false); 
