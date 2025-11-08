@@ -94,6 +94,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const userDocRef = doc(firestore, 'users', user.uid);
 
     try {
+      // --- Data Fetching before Transaction ---
+      const moduleItems = cartItems.filter(item => item.type === 'module');
+      const courseIdsFromModules = new Set<string>();
+
+      if (moduleItems.length > 0) {
+        const moduleIds = moduleItems.map(item => item.id);
+        const modulesRef = collection(firestore, 'modules');
+        const q_modules = query(modulesRef, where(documentId(), 'in', moduleIds));
+        const moduleSnapshots = await getDocs(q_modules);
+        
+        const lessonIds = new Set<string>();
+        moduleSnapshots.forEach(doc => {
+            const moduleData = doc.data() as Module;
+            lessonIds.add(moduleData.lessonId);
+        });
+
+        if (lessonIds.size > 0) {
+            const lessonsRef = collection(firestore, 'lessons');
+            const q_lessons = query(lessonsRef, where(documentId(), 'in', Array.from(lessonIds)));
+            const lessonSnapshots = await getDocs(q_lessons);
+            lessonSnapshots.forEach(doc => {
+                const lessonData = doc.data() as Lesson;
+                courseIdsFromModules.add(lessonData.courseId);
+            });
+        }
+      }
+      // --- End of Data Fetching ---
+
       await runTransaction(firestore, async (transaction) => {
         const userDoc = await transaction.get(userDocRef);
         if (!userDoc.exists()) {
@@ -108,51 +136,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
           throw new Error("Insufficient CAB tokens.");
         }
         
-        // --- Determine all course IDs to enroll in ---
-        const courseIdsToEnroll: Set<string> = new Set();
-        
-        // Add courses directly from the cart
+        // Combine all course IDs to enroll in
+        const courseIdsToEnroll: Set<string> = new Set(courseIdsFromModules);
         cartItems.forEach(item => {
             if (item.type === 'course') {
                 courseIdsToEnroll.add(item.id);
             }
         });
 
-        // For modules, find their parent course and add it
-        const moduleItems = cartItems.filter(item => item.type === 'module');
-        if (moduleItems.length > 0) {
-            const moduleIds = moduleItems.map(item => item.id);
-            // We need to fetch modules and then their lessons to find the courseId
-            const modulesRef = collection(firestore, 'modules');
-            const q_modules = query(modulesRef, where(documentId(), 'in', moduleIds));
-            const moduleSnapshots = await getDocs(q_modules);
-            
-            const lessonIds = new Set<string>();
-            moduleSnapshots.forEach(doc => {
-                const moduleData = doc.data() as Module;
-                lessonIds.add(moduleData.lessonId);
-            });
-
-            if (lessonIds.size > 0) {
-                const lessonsRef = collection(firestore, 'lessons');
-                const q_lessons = query(lessonsRef, where(documentId(), 'in', Array.from(lessonIds)));
-                const lessonSnapshots = await getDocs(q_lessons);
-                lessonSnapshots.forEach(doc => {
-                    const lessonData = doc.data() as Lesson;
-                    courseIdsToEnroll.add(lessonData.courseId);
-                });
-            }
-        }
-        // --- End of determining course IDs ---
-
+        // Filter out courses the user is already enrolled in
         const newCourseIdsToEnroll = Array.from(courseIdsToEnroll).filter(id => !alreadyEnrolled.includes(id));
         
         const newTokens = currentTokens - total;
         
         transaction.update(userDocRef, { 
             cabTokens: newTokens,
-            // Only add new course IDs to prevent duplicates
-            enrolledCourseIds: arrayUnion(...newCourseIdsToEnroll)
+            // Only add new course IDs to prevent duplicates and unnecessary writes
+            ...(newCourseIdsToEnroll.length > 0 && { enrolledCourseIds: arrayUnion(...newCourseIdsToEnroll) })
         });
       });
 
