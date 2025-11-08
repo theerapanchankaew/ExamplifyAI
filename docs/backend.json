@@ -338,34 +338,29 @@
         "overallPassRate"
       ]
     },
-    "CourseCompetency": {
+    "CourseAchievement": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "CourseCompetency",
+      "title": "CourseAchievement",
       "type": "object",
-      "description": "Represents the mapping between a course and a competency (TA/ISIC).",
+      "description": "Maps a course to a specific competency achievement (TA/ISIC pair). Passing the course awards this achievement.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the course competency entity."
+          "description": "Unique identifier for the course-achievement link."
         },
         "courseId": {
           "type": "string",
-          "description": "Reference to Course. (Relationship: Course 1:N CourseCompetency)"
+          "description": "Reference to the Course that grants the achievement."
         },
         "pair": {
           "type": "string",
-          "description": "The TA/ISIC pair."
-        },
-        "minPercent": {
-          "type": "number",
-          "description": "The minimum percentage required to achieve the competency."
+          "description": "The TA/ISIC pair awarded upon passing the course (e.g., 'IAF 35 / 8549')."
         }
       },
       "required": [
         "id",
         "courseId",
-        "pair",
-        "minPercent"
+        "pair"
       ]
     },
     "UserAchievement": {
@@ -622,11 +617,11 @@
         },
         "description": "Stores daily metrics for the system. Document ID is the date in YYYYMMDD format."
       },
-      "/courseCompetencies/{courseCompetencyId}": {
+      "/courseAchievements/{courseAchievementId}": {
         "schema": {
-          "$ref": "#/entities/CourseCompetency"
+          "$ref": "#/entities/CourseAchievement"
         },
-        "description": "Stores the mapping between courses and competencies."
+        "description": "Stores the mapping between a course and the competency pair it awards."
       },
       "/users/{userId}/achievements/{userAchievementId}": {
         "schema": {
@@ -667,5 +662,3 @@
     }
   }
 }
-
-    

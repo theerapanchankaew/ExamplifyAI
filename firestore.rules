@@ -83,7 +83,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /courseCompetencies/{courseCompetencyId} {
+    match /courseAchievements/{courseAchievementId} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -114,5 +114,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

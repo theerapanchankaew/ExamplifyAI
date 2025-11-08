@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirestore, useDoc, useCollection, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
-import { doc, collection, query, where, documentId, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, collection, query, where, documentId, addDoc, serverTimestamp, writeBatch, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -23,6 +23,7 @@ import Webcam from 'react-webcam';
 // Matches backend.json entities
 type Exam = { id: string; courseId: string; questionIds: string[] };
 type Question = { id: string; stem: string; options: string[]; correctAnswer: string };
+type CourseAchievement = { id: string; courseId: string; pair: string; }
 
 export default function ExamPage() {
   const params = useParams();
@@ -108,7 +109,7 @@ export default function ExamPage() {
   };
 
   const handleSubmit = async () => {
-    if (!user || !exam || !sortedQuestions || !userProfile || !userDocRef) return;
+    if (!user || !exam || !sortedQuestions || !userProfile || !userDocRef || !firestore) return;
     
     setIsSubmitting(true);
     const examCost = 10; // Let's say each exam costs 10 tokens
@@ -156,6 +157,30 @@ export default function ExamPage() {
       const newTokens = (userProfile.cabTokens ?? 0) - examCost;
       batch.update(userDocRef, { cabTokens: newTokens });
 
+      // 3. If passed, check for and award achievement
+      if (pass) {
+        const achievementsQuery = query(collection(firestore, 'courseAchievements'), where('courseId', '==', exam.courseId));
+        const achievementSnapshot = await getDocs(achievementsQuery);
+        
+        if (!achievementSnapshot.empty) {
+            achievementSnapshot.forEach(achievementDoc => {
+                const achievement = achievementDoc.data() as CourseAchievement;
+                const userAchievementRef = doc(collection(firestore, `users/${user.uid}/achievements`));
+                batch.set(userAchievementRef, {
+                    id: userAchievementRef.id,
+                    userId: user.uid,
+                    pair: achievement.pair,
+                    awardedAt: serverTimestamp()
+                });
+
+                toast({
+                    title: "Achievement Unlocked!",
+                    description: `You've earned the competency: ${achievement.pair}`,
+                });
+            });
+        }
+      }
+
       await batch.commit();
 
       toast({
@@ -165,7 +190,7 @@ export default function ExamPage() {
       router.push('/student-dashboard/my-history');
     } catch (e) {
        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: 'batch-write (attempts, users)',
+            path: 'batch-write (attempts, users, achievements)',
             operation: 'write',
             requestResourceData: { attempt: attemptData, userId: user.uid },
         }));
@@ -318,5 +343,3 @@ export default function ExamPage() {
     </>
   );
 }
-
-    
