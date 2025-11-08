@@ -63,15 +63,20 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // >>> Option 1: คง list ให้เฉพาะแอดมิน
-    // ผู้ใช้ทั่วไปต้อง query ด้วย where("userId","==", request.auth.uid)
+    // A user can read their own attempt. Admins can read any attempt.
+    // A user can create an attempt for themselves. Admins can write any attempt.
+    // Non-admins CANNOT list all attempts, but they CAN query for their own attempts.
     match /attempts/{attemptId} {
-      allow list: if isAdmin(); // <-- อย่า list ทั้งคอลเลกชันจาก client ที่ไม่ใช่แอดมิน
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin(); // Usually only admins should update historical records
-      allow delete: if isAdmin();
+      allow write: if isAdmin();
+      // NOTE: There is no `list` rule here. This is intentional.
+      // Firestore's `list` rule applies to collection group queries and broad collection reads.
+      // By omitting it, we force clients to make targeted queries.
+      // A query like `collection('attempts').where('userId', '==', request.auth.uid)`
+      // is secured by the `read` rule on each document it tries to access.
     }
+
 
     match /metrics/daily/{date} {
       allow read: if true;

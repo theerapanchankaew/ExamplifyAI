@@ -38,6 +38,7 @@ function ReportsContent() {
   const usersMap = useMemo(() => new Map(users?.map(u => [u.userId, u])), [users]);
 
   const attemptsQuery = useMemoFirebase(() => {
+    // Defer query creation until we know the user's role
     if (!firestore || isUserLoading || isProfileLoading) return null;
     
     const baseQuery = collection(firestore, 'attempts');
@@ -46,20 +47,17 @@ function ReportsContent() {
       if (selectedCourseId !== 'all') {
         return query(baseQuery, where('courseId', '==', selectedCourseId));
       }
-      return baseQuery;
+      return baseQuery; // Admin gets all attempts
     }
     
-    // For non-admin users
+    // For non-admin users, we must have a user object to query by their UID
     if (!user) return null;
 
-    const queries = [];
-    queries.push(where('userId', '==', user.uid));
-    
     if (selectedCourseId !== 'all') {
-      queries.push(where('courseId', '==', selectedCourseId));
+      return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
     }
     
-    return query(baseQuery, ...queries);
+    return query(baseQuery, where('userId', '==', user.uid));
     
   }, [firestore, user, isAdmin, isUserLoading, isProfileLoading, selectedCourseId]);
 

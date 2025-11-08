@@ -33,6 +33,14 @@ const chartConfig = {
 function AdminDashboardContent() {
     const firestore = useFirestore();
     const { user, isUserLoading: isAuthUserLoading } = useUser();
+    
+    // Explicitly get user profile to determine role
+    const userDocRef = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return doc(firestore, 'users', user.uid);
+    }, [firestore, user]);
+    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+    const isAdmin = useMemo(() => userProfile?.role === 'admin', [userProfile]);
 
     const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
     const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
@@ -42,15 +50,33 @@ function AdminDashboardContent() {
 
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     
-    // This query is now safe as it's only rendered for admins.
     const attemptsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(
-            collection(firestore, 'attempts'),
-            where('timestamp', '>=', sevenDaysAgo),
-            orderBy('timestamp', 'desc')
-        );
-    }, [firestore, sevenDaysAgo]);
+        // Wait until we know the user's role
+        if (!firestore || isAuthUserLoading || isProfileLoading) return null;
+        
+        const baseQuery = collection(firestore, 'attempts');
+
+        // If admin, fetch all attempts in the date range
+        if (isAdmin) {
+             return query(
+                baseQuery,
+                where('timestamp', '>=', sevenDaysAgo),
+                orderBy('timestamp', 'desc')
+            );
+        }
+        
+        // If not admin, but we have a user, fetch only their attempts
+        if (user) {
+            return query(
+                baseQuery,
+                where('userId', '==', user.uid),
+                where('timestamp', '>=', sevenDaysAgo),
+                orderBy('timestamp', 'desc')
+            );
+        }
+        
+        return null; // Don't query if no user and not admin
+    }, [firestore, user, isAdmin, isAuthUserLoading, isProfileLoading, sevenDaysAgo]);
 
     const { data: recentAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
     
@@ -82,9 +108,9 @@ function AdminDashboardContent() {
     }, [recentAttempts]);
 
     const recentUsersQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        if (!firestore || !isAdmin) return null; // Only fetch users if admin
         return query(collection(firestore, 'users'), orderBy('name', 'desc'), limit(5));
-    }, [firestore]);
+    }, [firestore, isAdmin]);
     const { data: recentUsers, isLoading: usersLoading, error: usersError } = useCollection<UserProfile>(recentUsersQuery);
 
     const getAvatarForUser = (user: UserProfile, index: number) => {
@@ -105,7 +131,7 @@ function AdminDashboardContent() {
         }
     }
     
-    const isLoading = coursesLoading || lessonsLoading || attemptsLoading || usersLoading;
+    const isLoading = coursesLoading || lessonsLoading || attemptsLoading || usersLoading || isProfileLoading || isAuthUserLoading;
     if (isLoading && !attemptsError) {
         return (
              <div className="flex h-full min-h-[80vh] items-center justify-center">
