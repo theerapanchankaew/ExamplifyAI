@@ -10,7 +10,7 @@
  * - `GenerateCourseFromTopicOutput`: The output type for the generateCourseFromTopic function.
  */
 
-import {ai} from '@/ai';
+import {ai} from '@/ai/index';
 import {z} from 'genkit';
 
 const GenerateCourseFromTopicInputSchema = z.object({

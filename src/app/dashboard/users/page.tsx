@@ -253,10 +253,13 @@ export default function UsersPage() {
   useEffect(() => {
     const verifyAdminStatus = async () => {
       // Wait for auth and profile to load
+      if (isAuthUserLoading || isProfileLoading) {
+        return; 
+      }
+      
       if (!authUser || !userProfile) {
-        if (!isAuthUserLoading && !isProfileLoading) {
-           setIsCheckingAdmin(false); // Auth and profile are loaded, but one is null
-        }
+        setIsAdminReady(false);
+        setIsCheckingAdmin(false);
         return;
       }
 

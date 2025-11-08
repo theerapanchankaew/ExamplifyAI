@@ -678,5 +678,3 @@ export default function AiCourseCreatorPage() {
     />
   );
 }
-
-    

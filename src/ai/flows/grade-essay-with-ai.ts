@@ -7,7 +7,7 @@
  * - GradeEssayWithAIOutput - The output type for the gradeEssayWithAI function.
  */
 
-import {ai} from '@/ai';
+import {ai} from '@/ai/index';
 import {z} from 'genkit';
 
 const GradeEssayWithAIInputSchema = z.object({
