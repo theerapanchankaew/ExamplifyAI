@@ -282,8 +282,7 @@ export default function DashboardPage() {
       if (userProfile.role === 'admin') {
         try {
           // Force refresh the token to get the latest custom claims
-          await authUser.getIdToken(true);
-          const tokenResult = await authUser.getIdTokenResult();
+          const tokenResult = await authUser.getIdTokenResult(true);
           
           if (tokenResult.claims.role === 'admin') {
              setIsAdmin(true);
@@ -316,10 +315,10 @@ export default function DashboardPage() {
     )
   }
 
-  if (isAdmin && userProfile?.role === 'admin') {
+  if (isAdmin) {
     return <AdminDashboardContent />;
   }
-
+  
   return (
       <PlaceholderContent 
           title="Access Denied" 
