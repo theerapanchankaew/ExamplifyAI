@@ -10,7 +10,7 @@ export type UserProfile = {
   role: 'student' | 'admin' | 'instructor' | 'examinee';
   cabTokens?: number;
   enrolledCourseIds?: string[];
-  mandatoryLearningPath?: string[];
+  mandatoryLearningPath?: string[]; // Should contain Roadmap IDs
   voluntaryLearningPath?: string[];
   avatarUrl?: string;
 };
