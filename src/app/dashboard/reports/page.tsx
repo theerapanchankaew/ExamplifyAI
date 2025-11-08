@@ -19,7 +19,7 @@ import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 function ReportsContent() {
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
   const userDocRef = useMemoFirebase(() => {
@@ -30,7 +30,6 @@ function ReportsContent() {
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
   const isAdmin = useMemo(() => userProfile?.role === 'admin', [userProfile]);
 
-
   const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
@@ -39,21 +38,18 @@ function ReportsContent() {
   const usersMap = useMemo(() => new Map(users?.map(u => [u.userId, u])), [users]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    // Wait until we know the user's role
-    if (!firestore || isProfileLoading) return null;
-    
+    if (isProfileLoading) return null;
+
     const baseQuery = collection(firestore, 'attempts');
     
-    // If the user is an admin, they can query all attempts or filter by course
     if (isAdmin) {
         if (selectedCourseId !== 'all') {
             return query(baseQuery, where('courseId', '==', selectedCourseId));
         }
-        return query(baseQuery); // Admin sees all if 'all' is selected
+        return baseQuery;
     }
     
-    // If NOT an admin, they can only query their own attempts
-    if (!user) return null; // Should not happen if profile is loaded, but as a safeguard
+    if (!user) return null;
     
     if (selectedCourseId !== 'all') {
         return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
