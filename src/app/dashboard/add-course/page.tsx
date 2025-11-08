@@ -41,20 +41,20 @@ const aiFormSchema = z.object({
 
 // Schema for JSON Import
 const jsonQuestionSchema = z.object({
-  id: z.string(),
-  type: z.enum(['mcq']),
-  text: z.string(),
-  options: z.array(z.string()),
+  id: z.string().optional(),
+  type: z.enum(['mcq', 'essay', 'scenario']),
+  stem: z.string(),
+  options: z.union([z.array(z.string()), z.record(z.string())]), // Allow array or object
   answer: z.string(),
-  points: z.number(),
+  points: z.number().optional(),
 });
 const jsonImportSchema = z.object({
   title: z.string(),
   description: z.string(),
-  duration: z.number(),
-  price: z.number(),
+  duration: z.number().optional(),
+  price: z.number().optional(),
   taTechnicalArea: z.string(),
-  isicCode: z.string(),
+  isicCode: z.string().optional(),
   passingScore: z.number(),
   learningMaterialUrl: z.string().optional(),
   questions: z.array(jsonQuestionSchema),
@@ -300,6 +300,7 @@ function AiCourseCreatorContent() {
 
     try {
       const jsonData = JSON.parse(jsonContent);
+      // We parse a single object, not an array
       const parsedData = jsonImportSchema.parse(jsonData);
       
       if (!firestore) {
@@ -311,10 +312,21 @@ function AiCourseCreatorContent() {
 
       const questionIds = parsedData.questions.map((q) => {
           const questionRef = doc(collection(firestore, "questions"));
+          
+          let optionsArray: string[];
+          if (Array.isArray(q.options)) {
+              optionsArray = q.options;
+          } else if (typeof q.options === 'object' && q.options !== null) {
+              // Convert object values to array, assuming keys are 'A', 'B', 'C' etc.
+              optionsArray = Object.values(q.options);
+          } else {
+              optionsArray = [];
+          }
+
           batch.set(questionRef, {
               id: questionRef.id,
-              stem: q.text,
-              options: q.options,
+              stem: q.stem,
+              options: optionsArray,
               correctAnswer: q.answer,
               difficulty: "Expert", // Or derive from data if available
           });
@@ -327,7 +339,7 @@ function AiCourseCreatorContent() {
           courseId: courseRef.id,
           questionIds: questionIds,
           blueprint: `Exam for ${parsedData.title}`,
-          duration: parsedData.duration,
+          duration: parsedData.duration || 120, // Default duration
           passingScore: parsedData.passingScore,
       });
 
@@ -666,3 +678,5 @@ export default function AiCourseCreatorPage() {
     />
   );
 }
+
+    
