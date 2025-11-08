@@ -3,11 +3,12 @@
 
 import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useUser } from '@/firebase';
-import { doc, updateDoc, arrayUnion, runTransaction, writeBatch } from 'firebase/firestore';
+import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, updateDoc, arrayUnion, runTransaction, writeBatch, collection, getDocs, query, where, documentId } from 'firebase/firestore';
 import type { UserProfile } from '@/types';
 import type { Course } from '@/types/course';
 import type { Module } from '@/types/module';
+import type { Lesson } from '@/types/lesson';
 
 
 export type CartItem = {
@@ -101,20 +102,57 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
         const userData = userDoc.data() as UserProfile;
         const currentTokens = userData.cabTokens || 0;
+        const alreadyEnrolled = userData.enrolledCourseIds || [];
 
         if (currentTokens < total) {
           throw new Error("Insufficient CAB tokens.");
         }
         
-        const courseIdsToEnroll = cartItems
-          .filter(item => item.type === 'course')
-          .map(item => item.id);
+        // --- Determine all course IDs to enroll in ---
+        const courseIdsToEnroll: Set<string> = new Set();
+        
+        // Add courses directly from the cart
+        cartItems.forEach(item => {
+            if (item.type === 'course') {
+                courseIdsToEnroll.add(item.id);
+            }
+        });
+
+        // For modules, find their parent course and add it
+        const moduleItems = cartItems.filter(item => item.type === 'module');
+        if (moduleItems.length > 0) {
+            const moduleIds = moduleItems.map(item => item.id);
+            // We need to fetch modules and then their lessons to find the courseId
+            const modulesRef = collection(firestore, 'modules');
+            const q_modules = query(modulesRef, where(documentId(), 'in', moduleIds));
+            const moduleSnapshots = await getDocs(q_modules);
+            
+            const lessonIds = new Set<string>();
+            moduleSnapshots.forEach(doc => {
+                const moduleData = doc.data() as Module;
+                lessonIds.add(moduleData.lessonId);
+            });
+
+            if (lessonIds.size > 0) {
+                const lessonsRef = collection(firestore, 'lessons');
+                const q_lessons = query(lessonsRef, where(documentId(), 'in', Array.from(lessonIds)));
+                const lessonSnapshots = await getDocs(q_lessons);
+                lessonSnapshots.forEach(doc => {
+                    const lessonData = doc.data() as Lesson;
+                    courseIdsToEnroll.add(lessonData.courseId);
+                });
+            }
+        }
+        // --- End of determining course IDs ---
+
+        const newCourseIdsToEnroll = Array.from(courseIdsToEnroll).filter(id => !alreadyEnrolled.includes(id));
         
         const newTokens = currentTokens - total;
         
         transaction.update(userDocRef, { 
             cabTokens: newTokens,
-            enrolledCourseIds: arrayUnion(...courseIdsToEnroll)
+            // Only add new course IDs to prevent duplicates
+            enrolledCourseIds: arrayUnion(...newCourseIdsToEnroll)
         });
       });
 
