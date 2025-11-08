@@ -60,6 +60,8 @@ function ModulesContent() {
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [moduleToDelete, setModuleToDelete] = useState<Module & { lessonTitle?: string } | null>(null);
+  const [lessonToBulkDelete, setLessonToBulkDelete] = useState<Lesson & { moduleCount: number } | null>(null);
+
 
   const modulesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'modules') : null, [firestore]);
   const { data: modules, isLoading: modulesLoading } = useCollection<Module>(modulesQuery);
@@ -101,6 +103,10 @@ function ModulesContent() {
     setModuleToDelete({ ...module, lessonTitle: lesson.title });
   };
   
+  const handleBulkDeleteClick = (lesson: Lesson, modules: Module[]) => {
+    setLessonToBulkDelete({ ...lesson, moduleCount: modules.length });
+  };
+
   const confirmDelete = async () => {
     if (!moduleToDelete || !firestore) return;
     setIsDeleting(true);
@@ -121,6 +127,37 @@ function ModulesContent() {
     } finally {
       setIsDeleting(false);
       setModuleToDelete(null);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!lessonToBulkDelete || !firestore) return;
+    
+    const modulesToDelete = groupedModules[lessonToBulkDelete.id]?.modules;
+    if (!modulesToDelete || modulesToDelete.length === 0) return;
+    
+    setIsDeleting(true);
+    const batch = writeBatch(firestore);
+
+    modulesToDelete.forEach(module => {
+        const moduleRef = doc(firestore, 'modules', module.id);
+        batch.delete(moduleRef);
+    });
+    
+    try {
+        await batch.commit();
+        toast({
+            title: "All Modules Deleted",
+            description: `All ${modulesToDelete.length} modules from "${lessonToBulkDelete.title}" have been deleted.`,
+        });
+    } catch (e) {
+         errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `modules in lesson ${lessonToBulkDelete.id}`,
+            operation: 'delete',
+        }));
+    } finally {
+        setIsDeleting(false);
+        setLessonToBulkDelete(null);
     }
   };
 
@@ -157,7 +194,17 @@ function ModulesContent() {
                           <TableHeader>
                             <TableRow>
                               <TableHead>Module Title</TableHead>
-                              <TableHead className="w-[150px] text-right">Actions</TableHead>
+                              <TableHead className="w-[200px] text-right">
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleBulkDeleteClick(lessonDetails, modules)}
+                                  disabled={isDeleting}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete All
+                                </Button>
+                              </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -221,6 +268,27 @@ function ModulesContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!lessonToBulkDelete} onOpenChange={(open) => !open && setLessonToBulkDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete All Modules?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete all 
+              <span className="font-bold"> {lessonToBulkDelete?.moduleCount} modules</span> from the lesson
+              <span className="font-bold"> "{lessonToBulkDelete?.title}"</span>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirm & Delete All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </>
   );
 }

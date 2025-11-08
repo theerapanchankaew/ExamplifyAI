@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import type { Chapter } from '@/types/chapter';
 import type { Module } from '@/types/module';
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +60,8 @@ function ChaptersContent() {
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [chapterToDelete, setChapterToDelete] = useState<Chapter & { moduleTitle?: string } | null>(null);
+  const [moduleToBulkDelete, setModuleToBulkDelete] = useState<Module & { chapterCount: number } | null>(null);
+
 
   const chaptersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'chapters') : null, [firestore]);
   const { data: chapters, isLoading: chaptersLoading } = useCollection<Chapter>(chaptersQuery);
@@ -100,6 +102,10 @@ function ChaptersContent() {
     setChapterToDelete({ ...chapter, moduleTitle: module.title });
   };
   
+  const handleBulkDeleteClick = (module: Module, chapters: Chapter[]) => {
+    setModuleToBulkDelete({ ...module, chapterCount: chapters.length });
+  };
+
   const confirmDelete = async () => {
     if (!chapterToDelete || !firestore) return;
     setIsDeleting(true);
@@ -120,6 +126,37 @@ function ChaptersContent() {
     } finally {
       setIsDeleting(false);
       setChapterToDelete(null);
+    }
+  };
+  
+  const confirmBulkDelete = async () => {
+    if (!moduleToBulkDelete || !firestore) return;
+    
+    const chaptersToDelete = groupedChapters[moduleToBulkDelete.id]?.chapters;
+    if (!chaptersToDelete || chaptersToDelete.length === 0) return;
+    
+    setIsDeleting(true);
+    const batch = writeBatch(firestore);
+
+    chaptersToDelete.forEach(chapter => {
+        const chapterRef = doc(firestore, 'chapters', chapter.id);
+        batch.delete(chapterRef);
+    });
+    
+    try {
+        await batch.commit();
+        toast({
+            title: "All Chapters Deleted",
+            description: `All ${chaptersToDelete.length} chapters from "${moduleToBulkDelete.title}" have been deleted.`,
+        });
+    } catch (e) {
+         errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `chapters in module ${moduleToBulkDelete.id}`,
+            operation: 'delete',
+        }));
+    } finally {
+        setIsDeleting(false);
+        setModuleToBulkDelete(null);
     }
   };
 
@@ -156,7 +193,17 @@ function ChaptersContent() {
                           <TableHeader>
                             <TableRow>
                               <TableHead>Chapter Title</TableHead>
-                              <TableHead className="w-[150px] text-right">Actions</TableHead>
+                              <TableHead className="w-[200px] text-right">
+                                 <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleBulkDeleteClick(moduleDetails, chapters)}
+                                  disabled={isDeleting}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete All
+                                </Button>
+                              </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -216,6 +263,26 @@ function ChaptersContent() {
             <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
               {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+       <AlertDialog open={!!moduleToBulkDelete} onOpenChange={(open) => !open && setModuleToBulkDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete All Chapters?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete all 
+              <span className="font-bold"> {moduleToBulkDelete?.chapterCount} chapters</span> from the module
+              <span className="font-bold"> "{moduleToBulkDelete?.title}"</span>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirm & Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

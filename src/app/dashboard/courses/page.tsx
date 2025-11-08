@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import type { Course } from '@/types/course';
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -65,25 +65,63 @@ function CoursesContent() {
   const confirmDelete = async () => {
     if (!courseToDelete || !firestore) return;
     setIsDeleting(true);
-    
-    const courseRef = doc(firestore, "courses", courseToDelete.id);
+
+    const courseId = courseToDelete.id;
+    const batch = writeBatch(firestore);
 
     try {
-      await deleteDoc(courseRef);
-      toast({
-        title: "Course Deleted",
-        description: `"${courseToDelete.title}" has been successfully deleted.`,
-      });
-    } catch (e) {
+        // 1. Delete the course itself
+        const courseRef = doc(firestore, "courses", courseId);
+        batch.delete(courseRef);
+
+        // 2. Find and delete associated lessons, modules, chapters, and exams
+        const lessonsQuery = query(collection(firestore, 'lessons'), where('courseId', '==', courseId));
+        const lessonsSnapshot = await getDocs(lessonsQuery);
+        const lessonIds = lessonsSnapshot.docs.map(d => d.id);
+
+        if (lessonIds.length > 0) {
+            const modulesQuery = query(collection(firestore, 'modules'), where('lessonId', 'in', lessonIds));
+            const modulesSnapshot = await getDocs(modulesQuery);
+            const moduleIds = modulesSnapshot.docs.map(d => d.id);
+
+            if (moduleIds.length > 0) {
+                const chaptersQuery = query(collection(firestore, 'chapters'), where('moduleId', 'in', moduleIds));
+                const chaptersSnapshot = await getDocs(chaptersQuery);
+                chaptersSnapshot.docs.forEach(d => batch.delete(d.ref));
+            }
+            modulesSnapshot.docs.forEach(d => batch.delete(d.ref));
+        }
+        lessonsSnapshot.docs.forEach(d => batch.delete(d.ref));
+        
+        // 3. Find and delete associated exams
+        const examsQuery = query(collection(firestore, 'exams'), where('courseId', '==', courseId));
+        const examsSnapshot = await getDocs(examsQuery);
+        examsSnapshot.docs.forEach(d => batch.delete(d.ref));
+
+        // Commit the batch delete
+        await batch.commit();
+
+        toast({
+            title: "Course Deleted",
+            description: `"${courseToDelete.title}" and all its related content have been successfully deleted.`,
+        });
+
+    } catch (e: any) {
+        toast({
+            variant: "destructive",
+            title: "Deletion Failed",
+            description: e.message || "An error occurred during deletion."
+        });
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: courseRef.path,
+            path: `courses/${courseId} and related items`,
             operation: 'delete',
         }));
     } finally {
-      setIsDeleting(false);
-      setCourseToDelete(null);
+        setIsDeleting(false);
+        setCourseToDelete(null);
     }
   };
+
 
   return (
     <>
@@ -91,7 +129,7 @@ function CoursesContent() {
         <CardHeader>
           <CardTitle>Course Management</CardTitle>
           <CardDescription>
-            Manage all courses in the system.
+            Manage all courses in the system. Deleting a course will also delete all of its associated lessons, modules, chapters, and exams.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -163,10 +201,10 @@ function CoursesContent() {
       <AlertDialog open={!!courseToDelete} onOpenChange={(open) => !open && setCourseToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the course
-              <span className="font-bold"> "{courseToDelete?.title}"</span>.
+              <span className="font-bold"> "{courseToDelete?.title}"</span> and all of its associated content, including lessons, modules, chapters, and exams.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
