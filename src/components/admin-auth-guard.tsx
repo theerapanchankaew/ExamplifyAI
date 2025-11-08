@@ -8,7 +8,6 @@ import type { UserProfile } from '@/types';
 import { Loader2 } from 'lucide-react';
 import { PlaceholderContent } from './placeholder-content';
 
-
 export function AdminAuthGuard({ children }: { children?: ReactNode }) {
   const { user: authUser, isUserLoading: isAuthLoading } = useUser();
   const firestore = useFirestore();
@@ -23,20 +22,18 @@ export function AdminAuthGuard({ children }: { children?: ReactNode }) {
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
   useEffect(() => {
-    // We are checking as long as the initial auth status OR the profile data is loading.
-    const stillLoading = isAuthLoading || isProfileLoading;
-    setIsChecking(stillLoading);
+    // We are only done checking when auth has loaded and, if there's a user, their profile has loaded too.
+    const hasFinishedChecking = !isAuthLoading && (!authUser || (authUser && !isProfileLoading));
 
-    if (!stillLoading) {
-      // Once all loading is done, determine if the user is an admin.
-      if (authUser && userProfile) {
-        setIsAdmin(userProfile.role === 'admin');
+    if (hasFinishedChecking) {
+      if (userProfile && userProfile.role === 'admin') {
+        setIsAdmin(true);
       } else {
-        // If there's no authenticated user or no profile, they are not an admin.
         setIsAdmin(false);
       }
+      setIsChecking(false);
     }
-  }, [authUser, userProfile, isAuthLoading, isProfileLoading]);
+  }, [isAuthLoading, authUser, isProfileLoading, userProfile]);
 
   if (isChecking) {
     return (
@@ -47,11 +44,9 @@ export function AdminAuthGuard({ children }: { children?: ReactNode }) {
   }
 
   if (isAdmin) {
-    // If user is an admin, render the protected content
     return <>{children}</>;
   }
 
-  // If not an admin, show access denied message
   return (
     <PlaceholderContent
       title="Access Denied"
