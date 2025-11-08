@@ -3,14 +3,14 @@
 import { Timestamp } from "firebase/firestore";
 
 export type UserProfile = {
-  id: string; // This should match the document ID in Firestore, which is user.uid
+  id: string; 
   userId: string;
   name: string;
   email: string;
   role: 'student' | 'admin' | 'instructor' | 'examinee';
   cabTokens?: number;
   enrolledCourseIds?: string[];
-  mandatoryLearningPath?: string[]; // Should contain Roadmap IDs
+  mandatoryLearningPath?: string[];
   voluntaryLearningPath?: string[];
   avatarUrl?: string;
 };

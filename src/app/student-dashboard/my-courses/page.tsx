@@ -48,7 +48,11 @@ export default function MyCoursesPage() {
   useEffect(() => {
     const findExams = async () => {
       if (!firestore || !courses) {
-        setIsFindingExams(false);
+        // If courses are not loaded yet but we are no longer in a loading state, it means no courses.
+        if (!coursesLoading) {
+            setIsFindingExams(false);
+            setCoursesWithExams([]);
+        }
         return;
       }
       setIsFindingExams(true);
@@ -62,11 +66,9 @@ export default function MyCoursesPage() {
               const examDoc = querySnapshot.docs[0];
               return { ...course, examId: examDoc.id, examError: false };
             }
-            // No exam found is a valid state, not an error.
             return { ...course, examId: undefined, examError: true };
           } catch (error) {
             console.error(`Error finding exam for course ${course.id}:`, error);
-            // An actual error occurred during fetch.
             return { ...course, examId: undefined, examError: true };
           }
         })
@@ -75,11 +77,7 @@ export default function MyCoursesPage() {
       setIsFindingExams(false);
     };
 
-    if (courses) {
-        findExams();
-    } else if (!coursesLoading) {
-        setIsFindingExams(false);
-    }
+    findExams();
   }, [courses, firestore, coursesLoading]);
 
   const getCourseImage = (index: number) => {
@@ -113,7 +111,7 @@ export default function MyCoursesPage() {
     );
   }
 
-  if (!userProfile || coursesWithExams.length === 0) {
+  if (coursesWithExams.length === 0) {
     return (
         <div className="flex h-[60vh] w-full items-center justify-center rounded-lg border-2 border-dashed">
             <div className="text-center">

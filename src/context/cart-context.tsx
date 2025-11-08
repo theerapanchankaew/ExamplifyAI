@@ -106,16 +106,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
           throw new Error("Insufficient CAB tokens.");
         }
         
-        // Separate items by type
-        const courseIdsToEnroll = cartItems.filter(item => item.type === 'course').map(item => item.id);
-        // We might need a separate field for modules, for now, we just enroll in the parent course
-        // For simplicity, we are assuming buying a module means enrolling in the parent course if not already enrolled
-        // A more complex logic would be needed for a real app (e.g. `enrolledModuleIds`)
+        const courseIdsToEnroll = cartItems
+          .filter(item => item.type === 'course')
+          .map(item => item.id);
         
         const newTokens = currentTokens - total;
         
-        // This is a simplified logic. A real app might need to handle module purchases differently.
-        // Here, we just enroll the user in the course.
         transaction.update(userDocRef, { 
             cabTokens: newTokens,
             enrolledCourseIds: arrayUnion(...courseIdsToEnroll)
