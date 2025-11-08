@@ -36,7 +36,8 @@ export function AdminAuthGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // We can only check the role after both auth and profile data have loaded.
-    if (isAuthLoading || isProfileLoading) {
+    const isLoading = isAuthLoading || isProfileLoading;
+    if (isLoading) {
       setIsChecking(true);
       return;
     }
@@ -49,7 +50,6 @@ export function AdminAuthGuard({ children }: { children: ReactNode }) {
     }
     
     // Check if the role in Firestore is 'admin'.
-    // In a production app, you'd also want to verify this against a custom claim in the ID token.
     if (userProfile.role === 'admin') {
       setIsAdmin(true);
     } else {
