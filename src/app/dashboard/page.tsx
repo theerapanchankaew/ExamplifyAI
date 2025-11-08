@@ -2,9 +2,9 @@
 'use client';
 
 import { AdminAuthGuard } from "@/components/admin-auth-guard";
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, limit, orderBy, where, Timestamp } from 'firebase/firestore';
-import { useState, type ReactNode, useMemo } from 'react';
+import { useState, type ReactNode, useMemo, useEffect } from 'react';
 import type { UserProfile, Attempt, Course, Lesson } from '@/types';
 import { Loader2, BookOpen, Activity, Percent, Users as UsersIcon, Book } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { subDays, format, startOfDay } from 'date-fns';
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { PlaceholderContent } from "@/components/placeholder-content";
+
 
 const chartConfig = {
   attempts: {
@@ -30,6 +32,7 @@ const chartConfig = {
 
 function AdminDashboardContent() {
     const firestore = useFirestore();
+    const { user, isUserLoading: isAuthUserLoading } = useUser();
 
     const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
     const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
@@ -38,10 +41,13 @@ function AdminDashboardContent() {
     const { data: lessons, isLoading: lessonsLoading } = useCollection<Lesson>(lessonsQuery);
 
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
+    
+    // Query for all attempts in the last 7 days for the chart
     const attemptsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
+        const baseQuery = collection(firestore, 'attempts');
         return query(
-            collection(firestore, 'attempts'),
+            baseQuery,
             where('timestamp', '>=', sevenDaysAgo),
             orderBy('timestamp', 'desc')
         );

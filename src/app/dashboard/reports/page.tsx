@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, query, where, Timestamp } from 'firebase/firestore';
+import { collection, query, where, Timestamp, doc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,10 +22,14 @@ function ReportsContent() {
   const { user } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
-  // Fetch the current user's profile to check their role
-  const userProfileDocRef = useMemoFirebase(() => (firestore && user) ? where("userId", "==", user.uid) : null, [firestore, user]);
+  const userProfileDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileDocRef);
-  const isAdmin = userProfile?.role === 'admin';
+  const isAdmin = useMemo(() => userProfile?.role === 'admin', [userProfile]);
+
 
   const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
@@ -38,20 +42,21 @@ function ReportsContent() {
     if (!firestore || !user) return null;
     
     const baseQuery = collection(firestore, 'attempts');
-    const queries = [];
+    const conditions = [];
 
-    // If the user is not an admin, they can only see their own attempts.
+    // Admins can see all (unless filtered), non-admins can only see their own.
     if (!isAdmin) {
-        queries.push(where('userId', '==', user.uid));
+        conditions.push(where('userId', '==', user.uid));
     }
     
-    // Admins can filter by course, or see all. Non-admins' views are also filtered by course.
+    // Course filter applies to both admins and non-admins.
     if (selectedCourseId !== 'all') {
-      queries.push(where('courseId', '==', selectedCourseId));
+      conditions.push(where('courseId', '==', selectedCourseId));
     }
 
-    return query(baseQuery, ...queries);
+    return conditions.length > 0 ? query(baseQuery, ...conditions) : baseQuery;
   }, [firestore, user, isAdmin, selectedCourseId]);
+
 
   const { data: attempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
@@ -111,19 +116,21 @@ function ReportsContent() {
           <h1 className="text-3xl font-bold font-headline">Reports & Analytics</h1>
           <p className="text-muted-foreground mt-1">Analyze exam results, pass rates, and performance.</p>
         </div>
-        <div className="w-full sm:w-64">
-           <Select onValueChange={setSelectedCourseId} defaultValue="all" disabled={isLoading}>
-                <SelectTrigger>
-                    <SelectValue placeholder="Select a course..." />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Courses</SelectItem>
-                    {courses?.map(course => (
-                        <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </div>
+        {isAdmin && (
+            <div className="w-full sm:w-64">
+                <Select onValueChange={setSelectedCourseId} defaultValue="all" disabled={isLoading}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a course..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Courses</SelectItem>
+                            {courses?.map(course => (
+                                <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+            </div>
+        )}
       </div>
       
       {isLoading ? (
@@ -196,8 +203,9 @@ function ReportsContent() {
 
 export default function ReportsPage() {
   return (
-    <AdminAuthGuard>
-      <ReportsContent />
-    </AdminAuthGuard>
-  )
+    // The content itself handles the logic for both admin and non-admin,
+    // so we don't need a hard AdminAuthGuard here.
+    // If a non-admin somehow lands here, they will only see their own data.
+    <ReportsContent />
+  );
 }
