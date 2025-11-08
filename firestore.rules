@@ -13,8 +13,11 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
+    // Recommended: Check the user's role from their document in Firestore.
     function isAdmin() {
-      return request.auth.token.role == 'admin';
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Rules for collections
@@ -65,7 +68,7 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin();
+      allow update: if isAdmin(); // Usually only admins should update historical records
       allow delete: if isAdmin();
     }
 
