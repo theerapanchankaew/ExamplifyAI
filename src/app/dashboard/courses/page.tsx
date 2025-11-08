@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -38,8 +39,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Trash2, Edit } from 'lucide-react';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
-export default function CoursesPage() {
+function CoursesContent() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -178,4 +180,12 @@ export default function CoursesPage() {
       </AlertDialog>
     </>
   );
+}
+
+export default function CoursesPage() {
+  return (
+    <AdminAuthGuard>
+      <CoursesContent />
+    </AdminAuthGuard>
+  )
 }

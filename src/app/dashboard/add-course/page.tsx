@@ -27,6 +27,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Loader2, Save, Wand2, Upload, FileJson } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlaceholderContent } from "@/components/placeholder-content"
+import { AdminAuthGuard } from "@/components/admin-auth-guard"
 
 // Schema for AI Generation Form
 const aiFormSchema = z.object({
@@ -615,66 +616,9 @@ function AiCourseCreatorContent() {
 }
 
 export default function AiCourseCreatorPage() {
-  const firestore = useFirestore();
-  const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
-  const [isAdminReady, setIsAdminReady] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
-
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !authUser) return null;
-    return doc(firestore, 'users', authUser.uid);
-  }, [firestore, authUser]);
-
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
-
-  useEffect(() => {
-    const verifyAdminStatus = async () => {
-      if (isAuthUserLoading || isProfileLoading) {
-        return; 
-      }
-      
-      if (!authUser || !userProfile) {
-        setIsAdminReady(false);
-        setIsCheckingAdmin(false);
-        return;
-      }
-
-      if (userProfile.role === 'admin') {
-        try {
-          const tokenResult = await authUser.getIdTokenResult();
-          if (tokenResult.claims.role !== 'admin') {
-            await authUser.getIdToken(true);
-          }
-          setIsAdminReady(true);
-        } catch (error) {
-          console.error("Error verifying admin token:", error);
-          setIsAdminReady(false);
-        }
-      } else {
-        setIsAdminReady(false);
-      }
-      setIsCheckingAdmin(false);
-    };
-    
-    verifyAdminStatus();
-  }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
-
-  if (isCheckingAdmin) {
-    return (
-      <div className="flex h-full min-h-[80vh] items-center justify-center">
-        <Loader2 className="h-16 w-16 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (isAdminReady) {
-    return <AiCourseCreatorContent />;
-  }
-
   return (
-    <PlaceholderContent 
-      title="Access Denied" 
-      description="You do not have permission to view this page."
-    />
-  );
+    <AdminAuthGuard>
+      <AiCourseCreatorContent />
+    </AdminAuthGuard>
+  )
 }

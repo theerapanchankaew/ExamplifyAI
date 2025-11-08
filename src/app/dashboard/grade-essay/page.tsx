@@ -11,13 +11,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
+import { AdminAuthGuard } from "@/components/admin-auth-guard"
 
 const formSchema = z.object({
   essayContent: z.string().min(50, "Essay must be at least 50 characters."),
   rubric: z.string().min(20, "Rubric must be at least 20 characters."),
 })
 
-export default function GradeEssayPage() {
+function GradeEssayContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<GradeEssayWithAIOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,5 +121,13 @@ export default function GradeEssayPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function GradeEssayPage() {
+  return (
+    <AdminAuthGuard>
+      <GradeEssayContent />
+    </AdminAuthGuard>
   )
 }

@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 type Schedule = {
   id: string;
@@ -36,7 +37,7 @@ const formSchema = z.object({
   }),
 });
 
-export default function SchedulerPage() {
+function SchedulerContent() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -261,4 +262,12 @@ export default function SchedulerPage() {
       </Dialog>
     </div>
   );
+}
+
+export default function SchedulerPage() {
+  return (
+    <AdminAuthGuard>
+      <SchedulerContent />
+    </AdminAuthGuard>
+  )
 }

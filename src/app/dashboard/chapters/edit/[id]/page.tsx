@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -19,13 +20,14 @@ import { useToast } from '@/hooks/use-toast';
 import type { Chapter } from '@/types/chapter';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long.'),
   content: z.string().min(10, 'Content must be at least 10 characters long.'),
 });
 
-export default function EditChapterPage() {
+function EditChapterContent() {
   const router = useRouter();
   const params = useParams();
   const { id: chapterId } = params;
@@ -152,4 +154,12 @@ export default function EditChapterPage() {
       </CardContent>
     </Card>
   );
+}
+
+export default function EditChapterPage() {
+  return (
+    <AdminAuthGuard>
+      <EditChapterContent />
+    </AdminAuthGuard>
+  )
 }

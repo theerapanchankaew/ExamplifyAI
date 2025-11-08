@@ -43,14 +43,16 @@ import { Loader2, Users, Gem, Trash2, Edit } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { PlaceholderContent } from '@/components/placeholder-content';
 import { Button } from '@/components/ui/button';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 
-function AdminUsersContent({ authUser, currentUserProfile }: { authUser: any, currentUserProfile: UserProfile }) {
+function AdminUsersContent() {
     const firestore = useFirestore();
     const router = useRouter();
     const { toast } = useToast();
     const [isDeleting, setIsDeleting] = useState(false);
     const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+    const { user: authUser } = useUser();
 
     const usersQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -239,78 +241,9 @@ function AdminUsersContent({ authUser, currentUserProfile }: { authUser: any, cu
 
 
 export default function UsersPage() {
-  const firestore = useFirestore();
-  const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
-  const [isAdminReady, setIsAdminReady] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
-
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !authUser) return null;
-    return doc(firestore, 'users', authUser.uid);
-  }, [firestore, authUser]);
-
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
-
-  useEffect(() => {
-    const verifyAdminStatus = async () => {
-      // Wait for auth and profile to load
-      if (isAuthUserLoading || isProfileLoading) {
-        return; 
-      }
-      
-      if (!authUser || !userProfile) {
-        setIsAdminReady(false);
-        setIsCheckingAdmin(false);
-        return;
-      }
-
-      // Check if user is an admin based on Firestore profile
-      if (userProfile.role === 'admin') {
-        try {
-          const tokenResult = await authUser.getIdTokenResult();
-          if (tokenResult.claims.role !== 'admin') {
-            await authUser.getIdToken(true); 
-            const refreshedTokenResult = await authUser.getIdTokenResult();
-            if (refreshedTokenResult.claims.role === 'admin') {
-                setIsAdminReady(true);
-            } else {
-                setIsAdminReady(false);
-            }
-          } else {
-             setIsAdminReady(true);
-          }
-        } catch (error) {
-          console.error("Error verifying admin token:", error);
-          setIsAdminReady(false); 
-        }
-      } else {
-        // Not an admin
-        setIsAdminReady(false);
-      }
-      setIsCheckingAdmin(false);
-    };
-    
-    verifyAdminStatus();
-
-  }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
-
-  
-  if (isCheckingAdmin) {
-    return (
-      <div className="flex h-full min-h-[80vh] items-center justify-center">
-        <Loader2 className="h-16 w-16 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  if (isAdminReady && authUser && userProfile) {
-    return <AdminUsersContent authUser={authUser} currentUserProfile={userProfile} />;
-  }
-  
   return (
-      <PlaceholderContent 
-          title="Access Denied" 
-          description="You do not have permission to view this page."
-      />
-  );
+    <AdminAuthGuard>
+      <AdminUsersContent />
+    </AdminAuthGuard>
+  )
 }

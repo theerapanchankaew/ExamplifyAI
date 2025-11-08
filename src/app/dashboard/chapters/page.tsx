@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -45,6 +46,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText, Edit, Trash2 } from 'lucide-react';
 import { PlaceholderContent } from '@/components/placeholder-content';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 type GroupedChapters = {
   [moduleId: string]: {
@@ -53,7 +55,7 @@ type GroupedChapters = {
   };
 };
 
-export default function ChaptersPage() {
+function ChaptersContent() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -221,4 +223,12 @@ export default function ChaptersPage() {
       </AlertDialog>
     </>
   );
+}
+
+export default function ChaptersPage() {
+  return (
+    <AdminAuthGuard>
+      <ChaptersContent />
+    </AdminAuthGuard>
+  )
 }

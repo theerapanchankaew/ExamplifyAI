@@ -13,9 +13,10 @@ import { Loader2, AlertCircle, TrendingUp } from 'lucide-react';
 import type { Attempt, UserProfile } from '@/types';
 import type { Course } from '@/types/course';
 import { PlaceholderContent } from '@/components/placeholder-content';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 
-export default function ReportsPage() {
+function ReportsContent() {
   const firestore = useFirestore();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
@@ -164,4 +165,12 @@ export default function ReportsPage() {
 
     </div>
   );
+}
+
+export default function ReportsPage() {
+  return (
+    <AdminAuthGuard>
+      <ReportsContent />
+    </AdminAuthGuard>
+  )
 }

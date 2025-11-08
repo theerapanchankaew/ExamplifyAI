@@ -22,6 +22,7 @@ import type { Course } from '@/types/course';
 import type { MasterCourse } from '@/types/master-course';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long.'),
@@ -32,7 +33,7 @@ const formSchema = z.object({
   facultyCode: z.string().optional(),
 });
 
-export default function EditCoursePage() {
+function EditCourseContent() {
   const router = useRouter();
   const params = useParams();
   const { id: courseId } = params;
@@ -261,4 +262,12 @@ export default function EditCoursePage() {
       </CardContent>
     </Card>
   );
+}
+
+export default function EditCoursePage() {
+  return (
+    <AdminAuthGuard>
+      <EditCourseContent />
+    </AdminAuthGuard>
+  )
 }

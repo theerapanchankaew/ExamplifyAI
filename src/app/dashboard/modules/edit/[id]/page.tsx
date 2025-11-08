@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -19,12 +20,13 @@ import type { Module } from '@/types/module';
 import type { Chapter } from '@/types/chapter';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long.'),
 });
 
-export default function EditModulePage() {
+function EditModuleContent() {
   const router = useRouter();
   const params = useParams();
   const { id: moduleId } = params;
@@ -162,4 +164,12 @@ export default function EditModulePage() {
       </CardContent>
     </Card>
   );
+}
+
+export default function EditModulePage() {
+  return (
+    <AdminAuthGuard>
+      <EditModuleContent />
+    </AdminAuthGuard>
+  )
 }

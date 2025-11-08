@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -45,6 +46,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, Layers, Edit, Trash2 } from 'lucide-react';
 import { PlaceholderContent } from '@/components/placeholder-content';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 type GroupedModules = {
   [lessonId: string]: {
@@ -53,7 +55,7 @@ type GroupedModules = {
   };
 };
 
-export default function ModulesPage() {
+function ModulesContent() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -222,4 +224,12 @@ export default function ModulesPage() {
       </AlertDialog>
     </>
   );
+}
+
+export default function ModulesPage() {
+  return (
+    <AdminAuthGuard>
+      <ModulesContent />
+    </AdminAuthGuard>
+  )
 }

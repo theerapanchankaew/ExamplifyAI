@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -19,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { MasterCourse } from '@/types/master-course';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 const competencyPairSchema = z.object({
   taCode: z.string().min(1, 'TA Code is required.'),
@@ -32,7 +34,7 @@ const formSchema = z.object({
   requiredCompetencies: z.array(competencyPairSchema).min(1, 'At least one competency pair is required.'),
 });
 
-export default function EditMasterCoursePage() {
+function EditMasterCourseContent() {
   const router = useRouter();
   const params = useParams();
   const { id: masterCourseId } = params;
@@ -196,4 +198,10 @@ export default function EditMasterCoursePage() {
   );
 }
 
-    
+export default function EditMasterCoursePage() {
+  return (
+    <AdminAuthGuard>
+      <EditMasterCourseContent />
+    </AdminAuthGuard>
+  )
+}

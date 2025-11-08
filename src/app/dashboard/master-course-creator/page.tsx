@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from 'react';
@@ -23,6 +24,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, PlusCircle, Trash2, X, Download, Upload, FileJson, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 import type { MasterCourse } from '@/types/master-course';
 
@@ -49,7 +51,7 @@ const masterCourseJsonSchema = z.object({
 const jsonImportSchema = z.array(masterCourseJsonSchema);
 
 
-export default function MasterCourseCreatorPage() {
+function MasterCourseCreatorContent() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
@@ -436,3 +438,10 @@ export default function MasterCourseCreatorPage() {
   );
 }
 
+export default function MasterCourseCreatorPage() {
+  return (
+    <AdminAuthGuard>
+      <MasterCourseCreatorContent />
+    </AdminAuthGuard>
+  )
+}

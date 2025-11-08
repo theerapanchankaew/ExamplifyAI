@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -23,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 import type { Course } from '@/types/course';
 import type { Roadmap } from '@/types/roadmap';
@@ -32,7 +34,7 @@ const formSchema = z.object({
   steps: z.array(z.string()).min(1, 'You must select at least one course.'),
 });
 
-export default function RoadmapCreatorPage() {
+function RoadmapCreatorContent() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
@@ -311,4 +313,10 @@ export default function RoadmapCreatorPage() {
   );
 }
 
-    
+export default function RoadmapCreatorPage() {
+  return (
+    <AdminAuthGuard>
+      <RoadmapCreatorContent />
+    </AdminAuthGuard>
+  )
+}

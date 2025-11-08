@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -19,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { UserProfile } from '@/types';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 const formSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters.'),
@@ -27,7 +29,7 @@ const formSchema = z.object({
   cabTokens: z.coerce.number().int().min(0, 'CAB tokens cannot be negative.'),
 });
 
-export default function EditUserPage() {
+function EditUserContent() {
   const router = useRouter();
   const params = useParams();
   const { id: userId } = params;
@@ -192,4 +194,13 @@ export default function EditUserPage() {
       </CardContent>
     </Card>
   );
+}
+
+
+export default function EditUserPage() {
+  return (
+    <AdminAuthGuard>
+      <EditUserContent />
+    </AdminAuthGuard>
+  )
 }

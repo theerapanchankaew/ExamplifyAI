@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -21,13 +22,14 @@ import type { Roadmap } from '@/types/roadmap';
 import type { Course } from '@/types/course';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Roadmap title must be at least 3 characters long.'),
   steps: z.array(z.string()).min(1, 'You must select at least one course.'),
 });
 
-export default function EditRoadmapPage() {
+function EditRoadmapContent() {
   const router = useRouter();
   const params = useParams();
   const { id: roadmapId } = params;
@@ -198,4 +200,10 @@ export default function EditRoadmapPage() {
   );
 }
 
-    
+export default function EditRoadmapPage() {
+  return (
+    <AdminAuthGuard>
+      <EditRoadmapContent />
+    </AdminAuthGuard>
+  )
+}

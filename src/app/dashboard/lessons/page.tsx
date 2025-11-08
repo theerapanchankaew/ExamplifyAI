@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -48,6 +49,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Loader2, BookCopy, Edit, Trash2, Search } from 'lucide-react';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 type GroupedLessons = {
   [courseId: string]: {
@@ -56,7 +58,7 @@ type GroupedLessons = {
   };
 };
 
-export default function LessonsPage() {
+function LessonsContent() {
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -341,4 +343,12 @@ export default function LessonsPage() {
       </AlertDialog>
     </>
   );
+}
+
+export default function LessonsPage() {
+  return (
+    <AdminAuthGuard>
+      <LessonsContent />
+    </AdminAuthGuard>
+  )
 }

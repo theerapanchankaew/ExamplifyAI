@@ -1,12 +1,11 @@
 
 
-'use client'
+'use client';
 
 import { useMemoFirebase } from "@/firebase/provider"
 import { useCollection } from "@/firebase"
 import { collection, query, limit, where, Timestamp, orderBy } from "firebase/firestore"
-import { useFirestore, useUser, useDoc } from "@/firebase"
-import { doc } from 'firebase/firestore';
+import { useFirestore } from "@/firebase"
 import {
   Card,
   CardContent,
@@ -35,9 +34,9 @@ import type { UserProfile, Attempt } from "@/types"
 import type { Course } from '@/types/course'
 import type { Lesson } from '@/types/lesson'
 import { subDays, format, startOfDay } from 'date-fns'
-import { useState, useEffect, useMemo } from "react"
+import { useState, useMemo } from "react"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
-import { PlaceholderContent } from "@/components/placeholder-content"
+import { AdminAuthGuard } from "@/components/admin-auth-guard"
 
 const chartConfig = {
   attempts: {
@@ -252,64 +251,9 @@ function AdminDashboardContent() {
 
 
 export default function DashboardPage() {
-  const firestore = useFirestore();
-  const { user: authUser, isUserLoading: isAuthUserLoading } = useUser();
-  
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
-
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !authUser) return null;
-    return doc(firestore, 'users', authUser.uid);
-  }, [firestore, authUser]);
-
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
-  
-  useEffect(() => {
-    // We can only check the role after both auth and profile data have been loaded.
-    if (isAuthUserLoading || isProfileLoading) {
-        setIsCheckingAdmin(true);
-        return;
-    }
-    
-    // If there's no auth user or no firestore profile, they can't be an admin.
-    if (!authUser || !userProfile) {
-        setIsAdmin(false);
-        setIsCheckingAdmin(false);
-        return;
-    }
-    
-    // Check if the role in Firestore is 'admin'.
-    if (userProfile.role === 'admin') {
-        setIsAdmin(true);
-    } else {
-        setIsAdmin(false);
-    }
-    
-    // We've finished our check.
-    setIsCheckingAdmin(false);
-
-  }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
-
-  
-  if (isCheckingAdmin) {
-    return (
-      <div className="flex h-full min-h-[80vh] items-center justify-center">
-        <Loader2 className="h-16 w-16 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  if (isAdmin) {
-    return <AdminDashboardContent />;
-  }
-  
   return (
-      <PlaceholderContent 
-          title="Access Denied" 
-          description="You do not have permission to view the admin dashboard."
-      />
+    <AdminAuthGuard>
+      <AdminDashboardContent />
+    </AdminAuthGuard>
   );
 }
-
-    
