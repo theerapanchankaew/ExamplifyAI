@@ -14,7 +14,7 @@ import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BookOpen, AlertTriangle } from "lucide-react";
+import { Loader2, BookOpen, AlertTriangle, PlayCircle } from "lucide-react";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { useToast } from "@/hooks/use-toast";
 
@@ -98,6 +98,10 @@ export default function MyCoursesPage() {
     }
   }
 
+  const handleStartLearning = (courseId: string) => {
+    router.push(`/student-dashboard/learn/${courseId}`);
+  };
+
   const isLoading = profileLoading || coursesLoading || isFindingExams;
 
   if (isLoading) {
@@ -128,7 +132,7 @@ export default function MyCoursesPage() {
     <div className="flex flex-col gap-8">
        <div>
         <h1 className="text-3xl font-bold font-headline">My Courses</h1>
-        <p className="text-muted-foreground mt-1">Here are all the courses you are enrolled in. Select a course to start the exam.</p>
+        <p className="text-muted-foreground mt-1">Here are all the courses you are enrolled in. Select a course to start learning or take the exam.</p>
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -153,14 +157,24 @@ export default function MyCoursesPage() {
                 {course.description && <CardDescription className="line-clamp-3 text-sm mt-1">{course.description}</CardDescription>}
               </CardHeader>
               <CardContent className="flex-grow flex flex-col justify-end">
-                <Button 
-                  className="w-full mt-4" 
-                  onClick={() => handleStartExam(course.examId, !hasExam)}
-                  disabled={!hasExam}
-                >
-                  {!hasExam && <AlertTriangle className="mr-2 h-4 w-4" />}
-                  {hasExam ? "Start Exam" : "No Exam"}
-                </Button>
+                 <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                    <Button 
+                        className="w-full" 
+                        onClick={() => handleStartLearning(course.id)}
+                    >
+                        <PlayCircle className="mr-2 h-4 w-4"/>
+                        Start Learning
+                    </Button>
+                    <Button 
+                        variant="outline"
+                        className="w-full" 
+                        onClick={() => handleStartExam(course.examId, !hasExam)}
+                        disabled={!hasExam}
+                    >
+                        {!hasExam && <AlertTriangle className="mr-2 h-4 w-4" />}
+                        {hasExam ? "Start Exam" : "No Exam"}
+                    </Button>
+                 </div>
               </CardContent>
             </Card>
           );
