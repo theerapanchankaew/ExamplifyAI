@@ -39,7 +39,7 @@ function ReportsContent() {
   const usersMap = useMemo(() => new Map(users?.map(u => [u.userId, u])), [users]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore || !user || isProfileLoading) return null; // Wait for profile to load
     
     const baseQuery = collection(firestore, 'attempts');
     const conditions = [];
@@ -54,8 +54,8 @@ function ReportsContent() {
       conditions.push(where('courseId', '==', selectedCourseId));
     }
 
-    return conditions.length > 0 ? query(baseQuery, ...conditions) : baseQuery;
-  }, [firestore, user, isAdmin, selectedCourseId]);
+    return query(baseQuery, ...conditions);
+  }, [firestore, user, isAdmin, isProfileLoading, selectedCourseId]);
 
 
   const { data: attempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
@@ -205,7 +205,7 @@ export default function ReportsPage() {
   return (
     // The content itself handles the logic for both admin and non-admin,
     // so we don't need a hard AdminAuthGuard here.
-    // If a non-admin somehow lands here, they will only see their own data.
+    // If a non-admin lands here, they will only see their own data.
     <ReportsContent />
   );
 }
