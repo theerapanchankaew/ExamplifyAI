@@ -39,22 +39,27 @@ function ReportsContent() {
   const usersMap = useMemo(() => new Map(users?.map(u => [u.userId, u])), [users]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isProfileLoading) return null;
+    // Wait until we know the user's role
+    if (!firestore || isProfileLoading) return null;
     
     const baseQuery = collection(firestore, 'attempts');
     
+    // If the user is an admin, they can query all attempts or filter by course
     if (isAdmin) {
         if (selectedCourseId !== 'all') {
             return query(baseQuery, where('courseId', '==', selectedCourseId));
         }
         return query(baseQuery); // Admin sees all if 'all' is selected
-    } else {
-        // Non-admin always sees their own, optionally filtered by course
-         if (selectedCourseId !== 'all') {
-            return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
-        }
-        return query(baseQuery, where('userId', '==', user.uid));
     }
+    
+    // If NOT an admin, they can only query their own attempts
+    if (!user) return null; // Should not happen if profile is loaded, but as a safeguard
+    
+    if (selectedCourseId !== 'all') {
+        return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
+    }
+    return query(baseQuery, where('userId', '==', user.uid));
+    
   }, [firestore, user, isAdmin, isProfileLoading, selectedCourseId]);
 
 
@@ -202,10 +207,13 @@ function ReportsContent() {
 }
 
 export default function ReportsPage() {
+  // This page now correctly handles logic for both admin and non-admin users.
+  // The AdminAuthGuard is not strictly needed here because the component itself
+  // restricts data access based on the user's role.
+  // However, keeping it ensures non-admins don't even see the frame of the page if not desired.
   return (
-    // The content itself handles the logic for both admin and non-admin,
-    // so we don't need a hard AdminAuthGuard here.
-    // If a non-admin lands here, they will only see their own data.
-    <ReportsContent />
+    <AdminAuthGuard>
+      <ReportsContent />
+    </AdminAuthGuard>
   );
 }

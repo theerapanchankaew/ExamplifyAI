@@ -42,16 +42,16 @@ function AdminDashboardContent() {
 
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     
-    // Query for all attempts in the last 7 days for the chart
+    // This query is now safe as it's only rendered for admins.
     const attemptsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
-        const baseQuery = collection(firestore, 'attempts');
         return query(
-            baseQuery,
+            collection(firestore, 'attempts'),
             where('timestamp', '>=', sevenDaysAgo),
             orderBy('timestamp', 'desc')
         );
     }, [firestore, sevenDaysAgo]);
+
     const { data: recentAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
     
     const { totalPasses, overallPassRate } = useMemo(() => {
@@ -117,7 +117,10 @@ function AdminDashboardContent() {
     if (attemptsError) {
         return (
             <div className="flex h-full min-h-[80vh] items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
-                <pre className='whitespace-pre-wrap text-sm'>{attemptsError.message}</pre>
+                <div className="max-w-xl text-center">
+                    <h3 className="font-bold mb-2">Error Fetching Attempts Data</h3>
+                    <pre className='whitespace-pre-wrap text-sm'>{attemptsError.message}</pre>
+                </div>
             </div>
         )
     }
