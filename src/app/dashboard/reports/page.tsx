@@ -22,12 +22,12 @@ function ReportsContent() {
   const { user } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
-  const userProfileDocRef = useMemoFirebase(() => {
+  const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileDocRef);
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
   const isAdmin = useMemo(() => userProfile?.role === 'admin', [userProfile]);
 
 
@@ -39,22 +39,22 @@ function ReportsContent() {
   const usersMap = useMemo(() => new Map(users?.map(u => [u.userId, u])), [users]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isProfileLoading) return null; // Wait for profile to load
+    if (!firestore || !user || isProfileLoading) return null;
     
     const baseQuery = collection(firestore, 'attempts');
-    const conditions = [];
-
-    // Admins can see all (unless filtered), non-admins can only see their own.
-    if (!isAdmin) {
-        conditions.push(where('userId', '==', user.uid));
-    }
     
-    // Course filter applies to both admins and non-admins.
-    if (selectedCourseId !== 'all') {
-      conditions.push(where('courseId', '==', selectedCourseId));
+    if (isAdmin) {
+        if (selectedCourseId !== 'all') {
+            return query(baseQuery, where('courseId', '==', selectedCourseId));
+        }
+        return query(baseQuery); // Admin sees all if 'all' is selected
+    } else {
+        // Non-admin always sees their own, optionally filtered by course
+         if (selectedCourseId !== 'all') {
+            return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
+        }
+        return query(baseQuery, where('userId', '==', user.uid));
     }
-
-    return query(baseQuery, ...conditions);
   }, [firestore, user, isAdmin, isProfileLoading, selectedCourseId]);
 
 

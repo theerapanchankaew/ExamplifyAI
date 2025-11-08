@@ -1,0 +1,108 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Rules for collections
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn(); // Any signed in user can create their profile
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /achievements/{userAchievementId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /modules/{moduleId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+
+    match /chapters/{chapterId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+
+    match /questions/{questionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /exams/{examId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Non-admins can query their own attempts, but cannot list all attempts.
+    match /attempts/{attemptId} {
+      allow read, create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Admins have broader permissions
+      allow read, write: if isAdmin();
+    }
+
+    match /metrics/daily/{date} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /courseCompetencies/{courseCompetencyId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /masterCourses/{masterCourseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /masterCertificates/{masterCertificateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /roadmaps/{roadmapId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /schedules/{scheduleId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /quizzes/{quizId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+  }
+}

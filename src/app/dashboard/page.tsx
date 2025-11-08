@@ -2,7 +2,7 @@
 'use client';
 
 import { AdminAuthGuard } from "@/components/admin-auth-guard";
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, query, limit, orderBy, where, Timestamp } from 'firebase/firestore';
 import { useState, type ReactNode, useMemo, useEffect } from 'react';
 import type { UserProfile, Attempt, Course, Lesson } from '@/types';
