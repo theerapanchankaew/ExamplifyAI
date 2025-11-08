@@ -20,14 +20,14 @@ service cloud.firestore {
     // Rules for collections
 
     match /users/{userId} {
-      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isSignedIn(); // Any signed in user can create their profile
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
 
       match /achievements/{achievementId} {
-        allow read, write: if isSignedIn() && (isOwner(userId) || isAdmin());
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
