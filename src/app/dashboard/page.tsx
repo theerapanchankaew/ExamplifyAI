@@ -268,42 +268,34 @@ export default function DashboardPage() {
   
   useEffect(() => {
     const verifyAdminStatus = async () => {
-      // Don't do anything until both auth and profile are resolved
       if (isAuthUserLoading || isProfileLoading) {
-        return;
+        return; 
       }
       
-      // If there's no authenticated user or no profile, they can't be an admin.
       if (!authUser || !userProfile) {
         setIsAdminReady(false);
         setIsCheckingAdmin(false);
         return;
       }
 
-      // Check if user is an admin based on Firestore profile
       if (userProfile.role === 'admin') {
         try {
           const tokenResult = await authUser.getIdTokenResult();
-          // Force refresh if the custom claim isn't set in the token
           if (tokenResult.claims.role !== 'admin') {
-            await authUser.getIdToken(true); 
+            await authUser.getIdToken(true);
           }
-          // Now the token is refreshed and admin is ready
           setIsAdminReady(true);
         } catch (error) {
           console.error("Error verifying admin token:", error);
-          setIsAdminReady(false); 
+          setIsAdminReady(false);
         }
       } else {
-        // Not an admin
         setIsAdminReady(false);
       }
-      // Finished all checks
       setIsCheckingAdmin(false);
     };
     
     verifyAdminStatus();
-
   }, [authUser, userProfile, isAuthUserLoading, isProfileLoading]);
 
   
@@ -315,12 +307,10 @@ export default function DashboardPage() {
     )
   }
 
-  // Once loading is complete, show content based on whether admin is ready
   if (isAdminReady) {
     return <AdminDashboardContent />;
   }
 
-  // If not loading and admin is not ready, deny access
   return (
       <PlaceholderContent 
           title="Access Denied" 
