@@ -53,7 +53,7 @@ function AdminDashboardContent() {
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     
     const attemptsQuery = useMemoFirebase(() => {
-        // Defer query creation until we know the user's role
+        // Defer query creation until we know the user's role by ensuring auth and profile are loaded.
         if (!firestore || isAuthUserLoading || isProfileLoading) return null;
         
         const baseQuery = collection(firestore, 'attempts');
@@ -133,7 +133,10 @@ function AdminDashboardContent() {
         }
     }
     
+    // We now consider attemptsLoading as part of the overall loading state.
+    // The query for attempts is deferred until the role is known.
     const isLoading = coursesLoading || lessonsLoading || attemptsLoading || usersLoading || isProfileLoading || isAuthUserLoading;
+
     if (isLoading && !attemptsError) {
         return (
              <div className="flex h-full min-h-[80vh] items-center justify-center">
@@ -265,11 +268,11 @@ function AdminDashboardContent() {
 }
 
 export default function DashboardPage() {
+  // The AdminAuthGuard now correctly wraps the content.
+  // The content itself defers queries until the user's role is confirmed.
   return (
     <AdminAuthGuard>
       <AdminDashboardContent />
     </AdminAuthGuard>
   );
 }
-
-    
