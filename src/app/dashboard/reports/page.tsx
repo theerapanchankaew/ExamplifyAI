@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -25,199 +24,245 @@ function ReportsContent() {
     if (!firestore || !authUser) return null;
     return doc(firestore, 'users', authUser.uid);
   }, [firestore, authUser]);
+
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
   const isAdmin = useMemo(() => {
     return !!authUser && !isAuthLoading && !isProfileLoading && userProfile?.role === 'admin';
   }, [authUser, isAuthLoading, isProfileLoading, userProfile]);
 
-  const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
+  const isAuthResolved = !isAuthLoading && !isProfileLoading;
+
+  const coursesQuery = useMemoFirebase(() => {
+    if (!firestore || !isAuthResolved) return null;
+    return collection(firestore, 'courses');
+  }, [firestore, isAuthResolved]);
+
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
-  
+
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || isAuthLoading || isProfileLoading) return null; // Wait for checks
-    if (!isAdmin) return null; // Don't query if not admin
+    if (!firestore || !isAuthResolved || !isAdmin) return null;
     return collection(firestore, 'users');
-  }, [firestore, isAdmin, isAuthLoading, isProfileLoading]);
+  }, [firestore, isAuthResolved, isAdmin]);
+
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
-  
+
   const usersMap = useMemo(() => {
-      const map = new Map<string, UserProfile>();
-      if (users) {
-        users.forEach(u => map.set(u.userId, u));
-      } else if (userProfile) { // Fallback for non-admin's own data
-        map.set(userProfile.userId, userProfile);
-      }
-      return map;
-  }, [users, userProfile]);
+    const map = new Map<string, UserProfile>();
+    if (isAdmin && users) {
+      users.forEach(u => u.userId && map.set(u.userId, u));
+    } else if (userProfile?.userId) {
+      map.set(userProfile.userId, userProfile);
+    }
+    return map;
+  }, [isAdmin, users, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    // Wait until auth state and admin role are fully resolved before creating a query.
-    if (!firestore || isAuthLoading || isProfileLoading) {
+    if (!firestore || !isAuthResolved || !authUser) {
       return null;
     }
-    
-    const attemptsCollection = collection(firestore, 'attempts');
-
-    // Only fetch all attempts if the user is confirmed to be an admin.
+    const attemptsRef = collection(firestore, 'attempts');
     if (isAdmin) {
-      return attemptsCollection;
+      return attemptsRef;
     }
-    // For non-admins, fetch only their own attempts.
-    if (authUser) {
-      return query(attemptsCollection, where('userId', '==', authUser.uid));
-    }
-    // If no user is logged in, no query should be made.
-    return null; 
-  }, [firestore, isAdmin, authUser, isAuthLoading, isProfileLoading]);
-
+    return query(attemptsRef, where('userId', '==', authUser.uid));
+  }, [firestore, isAuthResolved, authUser, isAdmin]);
 
   const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
   const attempts = useMemo(() => {
-    if (!allAttempts) return null;
-    if (selectedCourseId === 'all') return allAttempts;
-    return allAttempts.filter(attempt => attempt.courseId === selectedCourseId);
+    if (!allAttempts) return [];
+    return selectedCourseId === 'all'
+      ? allAttempts
+      : allAttempts.filter(attempt => attempt.courseId === selectedCourseId);
   }, [allAttempts, selectedCourseId]);
 
-  const courseMap = useMemo(() => new Map(courses?.map(c => [c.id, c])), [courses]);
-
   const reportData = useMemo(() => {
-    if (!attempts) return null;
+    if (!attempts || attempts.length === 0) return null;
+
     const totalAttempts = attempts.length;
     const passingAttempts = attempts.filter(a => a.pass).length;
     const passRate = totalAttempts > 0 ? (passingAttempts / totalAttempts) * 100 : 0;
     const averageScore = totalAttempts > 0 ? attempts.reduce((acc, a) => acc + a.score, 0) / totalAttempts : 0;
 
-    const leaderboard = attempts.reduce((acc, attempt) => {
-        const user = usersMap.get(attempt.userId);
-        if (user) {
-            if (!acc[user.userId]) {
-                acc[user.userId] = { 
-                    ...user, 
-                    highestScore: 0, 
-                    attemptsCount: 0,
-                    lastAttempt: new Date(0)
-                };
-            }
-            const userData = acc[user.userId];
-            userData.attemptsCount++;
-            if (attempt.score > userData.highestScore) {
-                userData.highestScore = attempt.score;
-            }
-            const attemptDate = (attempt.timestamp as unknown as Timestamp)?.toDate();
-            if (attemptDate && attemptDate > userData.lastAttempt) {
-                userData.lastAttempt = attemptDate;
-            }
-        }
-        return acc;
-    }, {} as Record<string, UserProfile & { highestScore: number; attemptsCount: number, lastAttempt: Date }>);
-    
-    const sortedLeaderboard = Object.values(leaderboard).sort((a, b) => b.highestScore - a.highestScore).slice(0, 10);
+    const leaderboardMap = new Map<string, any>();
+    attempts.forEach(attempt => {
+      const user = usersMap.get(attempt.userId);
+      if (!user) return;
+
+      if (!leaderboardMap.has(attempt.userId)) {
+        leaderboardMap.set(attempt.userId, {
+          ...user,
+          highestScore: 0,
+          attemptsCount: 0,
+          lastAttempt: new Date(0),
+        });
+      }
+
+      const record = leaderboardMap.get(attempt.userId);
+      record.attemptsCount++;
+      if (attempt.score > record.highestScore) {
+        record.highestScore = attempt.score;
+      }
+      const attemptDate = attempt.timestamp?.toDate?.() || new Date(attempt.timestamp as any);
+      if (attemptDate > record.lastAttempt) {
+        record.lastAttempt = attemptDate;
+      }
+    });
+
+    const sortedLeaderboard = Array.from(leaderboardMap.values())
+      .sort((a, b) => b.highestScore - a.highestScore)
+      .slice(0, 10);
 
     return { totalAttempts, passingAttempts, passRate, averageScore, sortedLeaderboard };
   }, [attempts, usersMap]);
 
+  const isLoading = isAuthLoading || isProfileLoading || coursesLoading || attemptsLoading || (isAdmin && usersLoading);
+  const hasError = attemptsError;
 
-  const isLoading = coursesLoading || attemptsLoading || usersLoading || isAuthLoading || isProfileLoading;
-  
-   if (attemptsError) {
-        return (
-            <div className="flex h-full min-h-[80vh] items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
-                 <div className="max-w-xl text-center">
-                    <h3 className="font-bold mb-2">Error Fetching Report Data</h3>
-                    <pre className='mt-4 whitespace-pre-wrap text-sm'>{attemptsError.message}</pre>
-                </div>
-            </div>
-        )
-    }
+  if (hasError) {
+    return (
+      <div className="flex h-full min-h-[80vh] items-center justify-center p-6">
+        <div className="max-w-2xl w-full text-center bg-destructive/10 p-6 rounded-lg">
+          <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
+          <h3 className="text-xl font-bold mb-2">Failed to Load Reports</h3>
+          <p className="text-muted-foreground mb-4">
+            {hasError?.message || 'An unknown error occurred.'}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            This is likely due to a permissions issue. Please contact support.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading && !reportData) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">Loading reports...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-headline">Reports & Analytics</h1>
-          <p className="text-muted-foreground mt-1">Analyze exam results, pass rates, and performance.</p>
+          <p className="text-muted-foreground mt-1">
+            {isAdmin ? 'View system-wide exam analytics' : 'View your personal exam results'}
+          </p>
         </div>
         <div className="w-full sm:w-64">
-            <Select onValueChange={setSelectedCourseId} defaultValue="all" disabled={isLoading}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select a course..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Courses</SelectItem>
-                        {courses?.map(course => (
-                            <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+          <Select
+            onValueChange={setSelectedCourseId}
+            value={selectedCourseId}
+            disabled={isLoading || !courses?.length}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a course..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Courses</SelectItem>
+              {courses?.map(course => (
+                <SelectItem key={course.id} value={course.id}>
+                  {course.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
-      
-      {isLoading ? (
-        <div className="flex h-[50vh] w-full items-center justify-center">
-            <Loader2 className="h-16 w-16 animate-spin text-primary" />
-        </div>
-      ) : !reportData || reportData.totalAttempts === 0 ? (
-         <PlaceholderContent 
-            icon={TrendingUp}
-            title="No Data Available"
-            description={selectedCourseId === 'all' ? "There are no exam attempts in the system yet." : "There are no exam attempts for the selected course."}
-        />
-      ) : (
+
+      {reportData ? (
         <>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                    <CardHeader><CardTitle>Total Attempts</CardTitle></CardHeader>
-                    <CardContent><p className="text-4xl font-bold font-headline">{reportData.totalAttempts}</p></CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle>Passing Attempts</CardTitle></CardHeader>
-                    <CardContent><p className="text-4xl font-bold font-headline">{reportData.passingAttempts}</p></CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle>Overall Pass Rate</CardTitle></CardHeader>
-                    <CardContent><p className="text-4xl font-bold font-headline text-primary">{reportData.passRate.toFixed(1)}%</p></CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle>Average Score</CardTitle></CardHeader>
-                    <CardContent><p className="text-4xl font-bold font-headline">{reportData.averageScore.toFixed(1)}%</p></CardContent>
-                </Card>
-            </div>
-
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
-                <CardHeader>
-                    <CardTitle>Leaderboard</CardTitle>
-                    <CardDescription>Top 10 users by highest score in the selected scope.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto rounded-md border">
-                        <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[50px]">Rank</TableHead>
-                                <TableHead>User</TableHead>
-                                <TableHead className="text-right">Highest Score</TableHead>
-                                <TableHead className="text-right">Attempts</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {reportData.sortedLeaderboard.map((user, index) => (
-                                <TableRow key={user.userId}>
-                                    <TableCell className="font-bold text-lg">{index + 1}</TableCell>
-                                    <TableCell className="font-medium">{user.name}</TableCell>
-                                    <TableCell className="text-right font-code text-primary font-bold">{user.highestScore}%</TableCell>
-                                    <TableCell className="text-right font-code">{user.attemptsCount}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
+              <CardHeader><CardTitle>Total Attempts</CardTitle></CardHeader>
+              <CardContent><p className="text-4xl font-bold font-headline">{reportData.totalAttempts}</p></CardContent>
             </Card>
-        </>
-      )}
+            <Card>
+              <CardHeader><CardTitle>Passing Attempts</CardTitle></CardHeader>
+              <CardContent><p className="text-4xl font-bold font-headline">{reportData.passingAttempts}</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Overall Pass Rate</CardTitle></CardHeader>
+              <CardContent><p className="text-4xl font-bold font-headline text-primary">{reportData.passRate.toFixed(1)}%</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Average Score</CardTitle></CardHeader>
+              <CardContent><p className="text-4xl font-bold font-headline">{reportData.averageScore.toFixed(1)}%</p></CardContent>
+            </Card>
+          </div>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Leaderboard</CardTitle>
+              <CardDescription>
+                {isAdmin 
+                  ? 'Top 10 users by highest score' 
+                  : 'Your attempt history'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px]">Rank</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead className="text-right">Highest Score</TableHead>
+                      <TableHead className="text-right">Attempts</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {reportData.sortedLeaderboard.length > 0 ? (
+                      reportData.sortedLeaderboard.map((user, index) => (
+                        <TableRow key={user.userId}>
+                          <TableCell className="font-bold text-lg">{index + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            {isAdmin ? user.name : 'You'}
+                          </TableCell>
+                          <TableCell className="text-right font-code text-primary font-bold">
+                            {user.highestScore}%
+                          </TableCell>
+                          <TableCell className="text-right font-code">
+                            {user.attemptsCount}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-4">
+                          No attempts found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <PlaceholderContent
+          icon={TrendingUp}
+          title="No Exam Data"
+          description={
+            selectedCourseId === 'all'
+              ? (isAdmin 
+                  ? "No exam attempts have been recorded yet." 
+                  : "You haven't taken any exams yet.")
+              : (isAdmin 
+                  ? "No attempts for this course." 
+                  : "You haven't taken this exam yet.")
+          }
+        />
+      )}
     </div>
   );
 }
