@@ -16,7 +16,6 @@ import type { Course } from '@/types/course';
 import { PlaceholderContent } from '@/components/placeholder-content';
 import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
-
 function ReportsContent() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
@@ -32,23 +31,22 @@ function ReportsContent() {
 
   const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
-
+  
+  // Conditionally fetch users only if admin
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null; // Only fetch all users if admin
+    if (!firestore || !isAdmin) return null; 
     return collection(firestore, 'users');
   }, [firestore, isAdmin]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
   
   const usersMap = useMemo(() => {
-      if(isAdmin && users) {
-        return new Map(users.map(u => [u.userId, u]));
-      }
-      if (userProfile) { // For non-admin, create a map with only their own profile
-        const map = new Map<string, UserProfile>();
+      const map = new Map<string, UserProfile>();
+      if (isAdmin && users) {
+        users.forEach(u => map.set(u.userId, u));
+      } else if (userProfile) { // For non-admin, create a map with only their own profile
         map.set(userProfile.userId, userProfile);
-        return map;
       }
-      return new Map<string, UserProfile>();
+      return map;
   }, [users, isAdmin, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
@@ -59,26 +57,19 @@ function ReportsContent() {
 
     if (isAdmin) {
       if (selectedCourseId !== 'all') {
-        // Admin, course selected
         return query(baseQuery, where('courseId', '==', selectedCourseId));
       }
-      // Admin, all courses
-      return baseQuery;
+      return baseQuery; // Admin, all courses
     }
     
-    // For non-admin users, we must have a user object to query by their UID
+    // Non-admin flow
     if (!user) return null;
-
     if (selectedCourseId !== 'all') {
-       // Non-admin, course selected
       return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
     }
-    
-    // Non-admin, all courses
-    return query(baseQuery, where('userId', '==', user.uid));
+    return query(baseQuery, where('userId', '==', user.uid)); // Non-admin, all their courses
     
   }, [firestore, user, isAdmin, isUserLoading, isProfileLoading, selectedCourseId]);
-
 
   const { data: attempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
@@ -121,12 +112,15 @@ function ReportsContent() {
   }, [attempts, usersMap]);
 
 
-  const isLoading = coursesLoading || attemptsLoading || usersLoading || isProfileLoading || isUserLoading;
+  const isLoading = coursesLoading || attemptsLoading || (isAdmin && usersLoading) || isProfileLoading || isUserLoading;
   
    if (attemptsError) {
         return (
             <div className="flex h-full min-h-[80vh] items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
-                <pre className='whitespace-pre-wrap text-sm'>{attemptsError.message}</pre>
+                 <div className="max-w-xl text-center">
+                    <h3 className="font-bold mb-2">Error Fetching Report Data</h3>
+                    <pre className='mt-4 whitespace-pre-wrap text-sm'>{attemptsError.message}</pre>
+                </div>
             </div>
         )
     }
@@ -224,15 +218,9 @@ function ReportsContent() {
 }
 
 export default function ReportsPage() {
-  // This page now correctly handles logic for both admin and non-admin users.
-  // The AdminAuthGuard is not strictly needed here because the component itself
-  // restricts data access based on the user's role.
-  // However, keeping it ensures non-admins don't even see the frame of the page if not desired.
   return (
     <AdminAuthGuard>
       <ReportsContent />
     </AdminAuthGuard>
   );
 }
-
-    

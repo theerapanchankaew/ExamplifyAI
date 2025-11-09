@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, query, limit, orderBy, where, Timestamp, doc } from 'firebase/firestore';
-import { useState, type ReactNode, useMemo, useEffect } from 'react';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, limit, orderBy, where, Timestamp } from 'firebase/firestore';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import type { UserProfile, Attempt } from '@/types';
 import type { Course } from '@/types/course';
 import type { Lesson } from '@/types/lesson';
@@ -16,9 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { subDays, format, startOfDay } from 'date-fns';
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { PlaceholderContent } from "@/components/placeholder-content";
-import { AdminAuthGuard } from "@/components/admin-auth-guard';
-
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 const chartConfig = {
   attempts: {
@@ -31,17 +29,12 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-
-function AdminDashboardContent() {
+// This new component will only be rendered if the user is an admin.
+// It safely contains all the data fetching that requires admin permissions.
+function DashboardDataContainer() {
     const firestore = useFirestore();
-    
-    // --- Data Fetching ---
-    const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
-    const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
-    const lessonsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'lessons') : null, [firestore]);
-    const { data: lessons, isLoading: lessonsLoading } = useCollection<Lesson>(lessonsQuery);
-    
+    // --- Admin-only Data Fetching ---
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     
     const attemptsQuery = useMemoFirebase(() => {
@@ -60,6 +53,12 @@ function AdminDashboardContent() {
     }, [firestore]);
     const { data: recentUsers, isLoading: usersLoading } = useCollection<UserProfile>(recentUsersQuery);
 
+    // --- General Data Fetching (safe for all) ---
+     const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
+    const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
+
+    const lessonsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'lessons') : null, [firestore]);
+    const { data: lessons, isLoading: lessonsLoading } = useCollection<Lesson>(lessonsQuery);
 
     // --- Data Processing & Memoization ---
     const { overallPassRate } = useMemo(() => {
@@ -111,7 +110,7 @@ function AdminDashboardContent() {
     // --- Loading & Error States ---
     const isLoading = coursesLoading || lessonsLoading || attemptsLoading || usersLoading;
 
-    if (isLoading && !attemptsError) {
+    if (isLoading) {
         return (
              <div className="flex h-full min-h-[80vh] items-center justify-center">
                 <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -124,7 +123,7 @@ function AdminDashboardContent() {
             <div className="flex h-full min-h-[80vh] items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
                 <div className="max-w-xl text-center">
                     <h3 className="font-bold mb-2">Error Fetching Dashboard Data</h3>
-                    <p>You may not have permission to view all attempts. This dashboard is for administrators.</p>
+                    <p>There was an error fetching attempts data. Please check Firestore security rules.</p>
                     <pre className='mt-4 whitespace-pre-wrap text-sm'>{attemptsError.message}</pre>
                 </div>
             </div>
@@ -238,10 +237,11 @@ function AdminDashboardContent() {
     );
 }
 
+
 export default function DashboardPage() {
   return (
     <AdminAuthGuard>
-      <AdminDashboardContent />
+      <DashboardDataContainer />
     </AdminAuthGuard>
   );
 }
