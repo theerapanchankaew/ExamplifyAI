@@ -36,19 +36,14 @@ function AdminDashboardContent() {
     const firestore = useFirestore();
     
     // --- Data Fetching ---
-    // These queries are safe as they are readable by all authenticated users.
     const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
     const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
     const lessonsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'lessons') : null, [firestore]);
     const { data: lessons, isLoading: lessonsLoading } = useCollection<Lesson>(lessonsQuery);
     
-    // --- Admin-only Data Fetching ---
-    // These queries require admin privileges and are deferred until the user's role is confirmed.
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     
-    // This query is now inside the AdminDashboardContent which is protected by AdminAuthGuard
-    // so we can assume the user is an admin here.
     const attemptsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return query(
