@@ -36,13 +36,16 @@ function ReportsContent() {
       return map;
   }, [users]);
 
+  // This query is now safe because this component only renders for admins.
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     const baseQuery = collection(firestore, 'attempts');
     if (selectedCourseId !== 'all') {
+      // This is a valid query for an admin.
       return query(baseQuery, where('courseId', '==', selectedCourseId));
     }
-    return baseQuery; // Admin can see all attempts
+    // This is also valid for an admin.
+    return baseQuery;
   }, [firestore, selectedCourseId]);
 
   const { data: attempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
