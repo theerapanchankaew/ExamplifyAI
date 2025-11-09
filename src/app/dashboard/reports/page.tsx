@@ -42,7 +42,6 @@ function ReportsContent() {
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthResolved || !isAdmin) return null;
-    // For admins, query the entire users collection. This is safe because it's wrapped in the isAdmin check.
     return query(collection(firestore, 'users'));
   }, [firestore, isAuthResolved, isAdmin]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
@@ -63,10 +62,8 @@ function ReportsContent() {
     }
     const attemptsRef = collection(firestore, 'attempts');
     if (isAdmin) {
-      // Use an empty query() for admins. This triggers `read` rules per document, not a `list` rule.
       return query(attemptsRef);
     } else {
-      // Non-admins are restricted to their own attempts.
       return query(attemptsRef, where('userId', '==', authUser.uid));
     }
   }, [firestore, authUser, isAuthResolved, isAdmin]);
@@ -77,7 +74,7 @@ function ReportsContent() {
     if (selectedCourseId === 'all') return allAttempts;
     
     const courseId = courses?.find(c => c.id === selectedCourseId)?.id;
-    if (!courseId) return allAttempts; // Fallback if course not found
+    if (!courseId) return allAttempts; 
     
     return allAttempts.filter(attempt => attempt.courseId === courseId);
   }, [allAttempts, selectedCourseId, courses]);
