@@ -53,6 +53,13 @@ function ReportsContent() {
     // Defer query creation until we know the user's role
     if (!firestore || isUserLoading || isProfileLoading) return null;
     
+    // This is a special case: if we are still loading the user profile, but we know auth is loaded
+    // and there is no user, we can assume they are not an admin.
+    if (!user && !isUserLoading) return null; 
+    
+    // If the user profile is still loading, we cannot determine the role yet, so we wait.
+    if (isProfileLoading) return null;
+
     const baseQuery = collection(firestore, 'attempts');
 
     if (isAdmin) {
