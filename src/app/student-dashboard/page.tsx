@@ -50,7 +50,7 @@ function StudentDashboardContent() {
 
   const allCoursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'courses');
+    return query(collection(firestore, 'courses'));
   }, [firestore]);
   const { data: allCourses, isLoading: coursesLoading } = useCollection<Course>(allCoursesQuery);
   const coursesMap = useMemo(() => new Map(allCourses?.map(c => [c.id, c])), [allCourses]);

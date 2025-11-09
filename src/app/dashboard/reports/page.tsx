@@ -36,7 +36,7 @@ function ReportsContent() {
 
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'courses');
+    return query(collection(firestore, 'courses'));
   }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
