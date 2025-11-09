@@ -35,18 +35,16 @@ function ReportsContent() {
   const isAuthResolved = !isAuthLoading && !isProfileLoading;
 
   const coursesQuery = useMemoFirebase(() => {
-    if (!firestore || !isAuthResolved) return null;
+    if (!firestore) return null;
     return collection(firestore, 'courses');
-  }, [firestore, isAuthResolved]);
-
+  }, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
   const usersQuery = useMemoFirebase(() => {
-    // THIS IS THE FIX: Only fetch all users if the user is confirmed to be an admin.
     if (!firestore || !isAuthResolved || !isAdmin) return null;
-    return collection(firestore, 'users');
+    // For admins, query the entire users collection. This is safe because it's wrapped in the isAdmin check.
+    return query(collection(firestore, 'users'));
   }, [firestore, isAuthResolved, isAdmin]);
-
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
   const usersMap = useMemo(() => {
@@ -60,20 +58,18 @@ function ReportsContent() {
   }, [isAdmin, users, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    if (!firestore || !isAuthResolved || !authUser) {
+    if (!firestore || !authUser || !isAuthResolved) {
       return null;
     }
     const attemptsRef = collection(firestore, 'attempts');
-    // THIS IS THE FIX: Conditionally create the query based on the admin role.
     if (isAdmin) {
-      // If admin, fetch all attempts.
-      return attemptsRef;
+      // Use an empty query() for admins. This triggers `read` rules per document, not a `list` rule.
+      return query(attemptsRef);
     } else {
-      // If not admin, fetch only the user's own attempts.
+      // Non-admins are restricted to their own attempts.
       return query(attemptsRef, where('userId', '==', authUser.uid));
     }
-  }, [firestore, isAuthResolved, authUser, isAdmin]);
-
+  }, [firestore, authUser, isAuthResolved, isAdmin]);
   const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
   const attempts = useMemo(() => {

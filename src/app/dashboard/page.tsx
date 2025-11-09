@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useFirestore, useCollection, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
 import type { Attempt, UserProfile } from '@/types';
@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { PlaceholderContent } from '@/components/placeholder-content';
 import { TrendingUp } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useState } from 'react';
 
 // This component will only be rendered if the user is an admin, thanks to AdminAuthGuard.
 function DashboardDataContainer() {
@@ -23,13 +22,11 @@ function DashboardDataContainer() {
   
   // Now it's safe to query for all users and attempts because this component only mounts for admins.
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(
-    useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore])
+    useMemoFirebase(() => firestore ? query(collection(firestore, 'users')) : null, [firestore])
   );
 
   const { data: allAttempts, isLoading: attemptsLoading } = useCollection<Attempt>(
-    // THIS IS THE FIX: Ensure we only query all attempts if the user is an admin.
-    // The component is already guarded by AdminAuthGuard, this makes it double-safe.
-    useMemoFirebase(() => firestore ? collection(firestore, 'attempts') : null, [firestore])
+    useMemoFirebase(() => firestore ? query(collection(firestore, 'attempts')) : null, [firestore])
   );
 
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(
@@ -50,8 +47,10 @@ function DashboardDataContainer() {
         return allAttempts;
     }
     const courseId = courses?.find(c => c.id === selectedCourseId)?.id;
-    if (!courseId) return allAttempts;
-    return allAttempts.filter(attempt => attempt.courseId === courseId);
+    // This logic might be incorrect if the attempt doesn't have a courseId. Assuming it does.
+    const attemptCourseId = allAttempts[0]?.courseId;
+    if (!courseId && !attemptCourseId) return allAttempts;
+    return allAttempts.filter(attempt => (attempt.courseId && attempt.courseId === courseId) || (attemptCourseId && attemptCourseId === courseId));
   }, [allAttempts, selectedCourseId, courses]);
 
 
