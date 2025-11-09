@@ -38,7 +38,7 @@ function ReportsContent() {
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAuthResolved) return null;
+    if (!firestore || !isAuthResolved) return null; // Wait for auth check
     if (isAdmin) {
       return collection(firestore, 'users');
     }
@@ -59,7 +59,7 @@ function ReportsContent() {
 
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore || !authUser || !isAuthResolved) {
-      return null;
+      return null; // Wait for auth check
     }
     const attemptsRef = collection(firestore, 'attempts');
     if (isAdmin) {
