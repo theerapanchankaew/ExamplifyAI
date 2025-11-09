@@ -29,11 +29,11 @@ function StudentDashboardContent() {
   const { user, isUserLoading } = useUser();
 
   // --- Data Fetching ---
-  const userProfileQuery = useMemoFirebase(() => {
+  const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
-  const { data: userProfile, isLoading: profileLoading } = useDoc<UserProfile>(userProfileQuery);
+  const { data: userProfile, isLoading: profileLoading } = useDoc<UserProfile>(userDocRef);
   const enrolledCourseIds = useMemo(() => userProfile?.enrolledCourseIds || [], [userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
