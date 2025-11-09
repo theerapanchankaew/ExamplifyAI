@@ -33,11 +33,12 @@ function DashboardDataContainer() {
 
   const isAuthResolved = !isAuthLoading && !isProfileLoading;
 
-  // Now it's safe to query for all users and attempts because this component only mounts for admins.
+  // It is now safe to query for all users because this component only mounts for admins.
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(
     useMemoFirebase(() => (firestore && isAuthResolved && isAdmin) ? query(collection(firestore, 'users')) : null, [firestore, isAuthResolved, isAdmin])
   );
-
+  
+  // It is now safe to query for all attempts because this component only mounts for admins.
   const { data: allAttempts, isLoading: attemptsLoading } = useCollection<Attempt>(
     useMemoFirebase(() => (firestore && isAuthResolved && isAdmin) ? query(collection(firestore, 'attempts')) : null, [firestore, isAuthResolved, isAdmin])
   );
