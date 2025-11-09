@@ -112,5 +112,9 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isAdmin();
     }
+
+    match /communityMessages/{messageId} {
+      allow read, write: if isSignedIn();
+    }
   }
 }

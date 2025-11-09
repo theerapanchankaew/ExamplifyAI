@@ -11,6 +11,7 @@ import {
   Award,
   History,
   LifeBuoy,
+  Users,
 } from "lucide-react"
 
 import {
@@ -22,6 +23,7 @@ import {
 const navItems = [
     { href: "/student-dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/student-dashboard/my-courses", label: "My Courses", icon: BookCopy },
+    { href: "/student-dashboard/community", label: "Community", icon: Users },
     { href: "/student-dashboard/my-roadmap", label: "My Roadmap", icon: Waypoints },
     { href: "/student-dashboard/marketplace", label: "Marketplace", icon: Store },
     { href: "/student-dashboard/my-qualifications", label: "My Qualifications", icon: Award },
