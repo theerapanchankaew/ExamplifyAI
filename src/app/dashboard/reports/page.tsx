@@ -20,8 +20,6 @@ function ReportsContent() {
   const firestore = useFirestore();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
-  // We are inside AdminAuthGuard, so we can assume the user is an admin.
-  // This simplifies data fetching logic.
   const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
   
@@ -36,20 +34,18 @@ function ReportsContent() {
       return map;
   }, [users]);
 
-  // This query is now safe because this component only renders for admins.
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    const baseQuery = collection(firestore, 'attempts');
-    if (selectedCourseId !== 'all') {
-      // This is a valid query for an admin.
-      return query(baseQuery, where('courseId', '==', selectedCourseId));
-    }
-    // This is also valid for an admin.
-    return baseQuery;
-  }, [firestore, selectedCourseId]);
+    return collection(firestore, 'attempts');
+  }, [firestore]);
+  const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
-  const { data: attempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
-  
+  const attempts = useMemo(() => {
+    if (!allAttempts) return null;
+    if (selectedCourseId === 'all') return allAttempts;
+    return allAttempts.filter(attempt => attempt.courseId === selectedCourseId);
+  }, [allAttempts, selectedCourseId]);
+
   const courseMap = useMemo(() => new Map(courses?.map(c => [c.id, c])), [courses]);
 
   const reportData = useMemo(() => {
