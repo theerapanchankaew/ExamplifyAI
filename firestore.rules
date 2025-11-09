@@ -114,7 +114,7 @@ service cloud.firestore {
     }
 
     match /communityMessages/{messageId} {
-      allow read, write: if isSignedIn();
+      allow list, read, write: if isSignedIn();
     }
   }
 }
