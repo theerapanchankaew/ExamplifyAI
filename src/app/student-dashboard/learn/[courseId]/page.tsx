@@ -105,7 +105,7 @@ function CourseContentPage() {
                                             ) : (
                                                  <Badge variant="outline">Incomplete</Badge>
                                             )}
-                                            <Button variant="outline" size="sm" disabled={item.status === 'Incomplete'}>{item.action}</Button>
+                                            <Button variant="outline" size="sm" disabled={item.status === 'Completed'}>{item.action}</Button>
                                         </div>
                                     </div>
                                 ))}
