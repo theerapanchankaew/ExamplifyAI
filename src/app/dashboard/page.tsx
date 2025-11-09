@@ -18,15 +18,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 // This component will only be rendered if the user is an admin, thanks to AdminAuthGuard.
 function DashboardDataContainer() {
   const firestore = useFirestore();
+  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
-  
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !authUser) return null;
+    return doc(firestore, 'users', authUser.uid);
+  }, [firestore, authUser]);
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+
+  const isAdmin = useMemo(() => {
+    return !!authUser && !isAuthLoading && !isProfileLoading && userProfile?.role === 'admin';
+  }, [authUser, isAuthLoading, isProfileLoading, userProfile]);
+
   // Now it's safe to query for all users and attempts because this component only mounts for admins.
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(
-    useMemoFirebase(() => firestore ? query(collection(firestore, 'users')) : null, [firestore])
+    useMemoFirebase(() => (firestore && isAdmin) ? query(collection(firestore, 'users')) : null, [firestore, isAdmin])
   );
 
   const { data: allAttempts, isLoading: attemptsLoading } = useCollection<Attempt>(
-    useMemoFirebase(() => firestore ? query(collection(firestore, 'attempts')) : null, [firestore])
+    useMemoFirebase(() => (firestore && isAdmin) ? query(collection(firestore, 'attempts')) : null, [firestore, isAdmin])
   );
 
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(
