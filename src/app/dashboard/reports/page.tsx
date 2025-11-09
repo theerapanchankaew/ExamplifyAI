@@ -52,13 +52,16 @@ function ReportsContent() {
 
   const attemptsQuery = useMemoFirebase(() => {
     // CRITICAL: Defer query creation until all auth/profile loading is complete.
-    if (isUserLoading || isProfileLoading || !firestore) {
+    if (isUserLoading || isProfileLoading) {
       return null;
     }
     
+    // Once loading is done, we must have a firestore instance to proceed.
+    if (!firestore) return null;
+
     const baseQuery = collection(firestore, 'attempts');
     
-    // If loading is finished and we've determined the user is an admin
+    // If we've determined the user is an admin
     if (isAdmin) {
       if (selectedCourseId !== 'all') {
         return query(baseQuery, where('courseId', '==', selectedCourseId));
@@ -66,7 +69,7 @@ function ReportsContent() {
       return baseQuery; // Admin, all courses
     }
     
-    // If loading is finished and the user is NOT an admin, they must have a `user` object if they are logged in.
+    // If NOT an admin, they must have a `user` object if they are logged in.
     if (user) {
         if (selectedCourseId !== 'all') {
           return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
