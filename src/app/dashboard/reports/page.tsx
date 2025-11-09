@@ -50,18 +50,14 @@ function ReportsContent() {
   }, [users, isAdmin, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    // Defer query creation until we know the user's role
-    if (!firestore || isUserLoading || isProfileLoading) return null;
+    // Defer query creation until we know the user's role and auth status.
+    if (!firestore || isUserLoading || isProfileLoading) {
+      return null;
+    }
     
-    // This is a special case: if we are still loading the user profile, but we know auth is loaded
-    // and there is no user, we can assume they are not an admin.
-    if (!user && !isUserLoading) return null; 
-    
-    // If the user profile is still loading, we cannot determine the role yet, so we wait.
-    if (isProfileLoading) return null;
-
     const baseQuery = collection(firestore, 'attempts');
-
+    
+    // If we've finished loading and determined the user is an admin
     if (isAdmin) {
       if (selectedCourseId !== 'all') {
         return query(baseQuery, where('courseId', '==', selectedCourseId));
@@ -69,12 +65,16 @@ function ReportsContent() {
       return baseQuery; // Admin, all courses
     }
     
-    // Non-admin flow
-    if (!user) return null;
-    if (selectedCourseId !== 'all') {
-      return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
+    // If we've finished loading and the user is NOT an admin, they must have a user object.
+    if (user) {
+        if (selectedCourseId !== 'all') {
+          return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
+        }
+        return query(baseQuery, where('userId', '==', user.uid)); // Non-admin, all their courses
     }
-    return query(baseQuery, where('userId', '==', user.uid)); // Non-admin, all their courses
+
+    // If there's no user after loading, they can't query anything.
+    return null; 
     
   }, [firestore, user, isAdmin, isUserLoading, isProfileLoading, selectedCourseId]);
 
@@ -231,3 +231,5 @@ export default function ReportsPage() {
     </AdminAuthGuard>
   );
 }
+
+    
