@@ -91,10 +91,14 @@ export default function SignupPage() {
 
     } catch (error: any) {
       console.error("Signup failed: ", error);
+      let description = "An unknown error occurred. Please try again.";
+      if (error.code === 'auth/email-already-in-use') {
+        description = "This email is already in use. Please try another email or sign in.";
+      }
       toast({
         variant: "destructive",
         title: "Sign Up Failed",
-        description: error.message || "An unknown error occurred. Please try again.",
+        description: description,
       });
     } finally {
       setIsLoading(false);
