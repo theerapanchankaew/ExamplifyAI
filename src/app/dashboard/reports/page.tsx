@@ -33,9 +33,23 @@ function ReportsContent() {
   const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
-  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore || !isAdmin) return null; // Only fetch all users if admin
+    return collection(firestore, 'users');
+  }, [firestore, isAdmin]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
-  const usersMap = useMemo(() => new Map(users?.map(u => [u.userId, u])), [users]);
+  
+  const usersMap = useMemo(() => {
+      if(isAdmin && users) {
+        return new Map(users.map(u => [u.userId, u]));
+      }
+      if (userProfile) { // For non-admin, create a map with only their own profile
+        const map = new Map<string, UserProfile>();
+        map.set(userProfile.userId, userProfile);
+        return map;
+      }
+      return new Map<string, UserProfile>();
+  }, [users, isAdmin, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
     // Defer query creation until we know the user's role
