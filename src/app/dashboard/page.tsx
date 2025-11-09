@@ -11,7 +11,6 @@ import { Loader2, TrendingUp, AlertCircle } from 'lucide-react';
 import type { Attempt, UserProfile } from '@/types';
 import type { Course } from '@/types/course';
 import { PlaceholderContent } from '@/components/placeholder-content';
-import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 function ReportsContent() {
   const firestore = useFirestore();
@@ -19,33 +18,29 @@ function ReportsContent() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
   const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !authUser?.uid) return null;
+    if (!firestore || !authUser) return null;
     return doc(firestore, 'users', authUser.uid);
-  }, [firestore, authUser?.uid]);
+  }, [firestore, authUser]);
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
   const isAuthResolved = !isAuthLoading && authUser && !isProfileLoading;
-
+  
   const isAdmin = useMemo(() => {
     return isAuthResolved && userProfile?.role === 'admin';
   }, [isAuthResolved, userProfile]);
 
-  const coursesQuery = useMemoFirebase(() => {
-    return firestore ? collection(firestore, 'courses') : null;
-  }, [firestore]);
+  // 📚 โหลด courses (public)
+  const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
+  const { data: courses } = useCollection<Course>(coursesQuery);
 
-  const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
-
+  // 👥 โหลด users — เฉพาะ admin เท่านั้น
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAuthResolved) return null; // Wait for auth check
-    if (isAdmin) {
-      return collection(firestore, 'users');
-    }
-    return null; // Non-admins cannot list all users
+    if (!firestore || !isAuthResolved || !isAdmin) return null;
+    return collection(firestore, 'users');
   }, [firestore, isAuthResolved, isAdmin]);
 
-  const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
+  const { data: users } = useCollection<UserProfile>(usersQuery);
 
   const usersMap = useMemo(() => {
     const map = new Map<string, UserProfile>();
@@ -57,27 +52,34 @@ function ReportsContent() {
     return map;
   }, [isAdmin, users, userProfile]);
 
+  // 📝 โหลด attempts — ตามเงื่อนไข
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore || !isAuthResolved) {
-      return null; // Wait for auth check
+      return null;
     }
     const attemptsRef = collection(firestore, 'attempts');
     if (isAdmin) {
-      return query(attemptsRef); // Admin gets all
+      return query(attemptsRef);
+    } else {
+      // For non-admin, authUser should exist because of isAuthResolved check
+      return query(attemptsRef, where('userId', '==', authUser!.uid));
     }
-    // For non-admin, authUser should exist because of isAuthResolved check
-    return query(attemptsRef, where('userId', '==', authUser!.uid));
   }, [firestore, authUser, isAuthResolved, isAdmin]);
 
-  const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
+  const {  data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
+  // 📊 กรองตาม course
   const attempts = useMemo(() => {
     if (!allAttempts) return [];
     return selectedCourseId === 'all'
       ? allAttempts
-      : allAttempts.filter(attempt => attempt.courseId === selectedCourseId);
-  }, [allAttempts, selectedCourseId]);
+      : allAttempts.filter(attempt => {
+          const course = courses?.find(c => c.id === selectedCourseId);
+          return course && attempt.courseId === course.id;
+        });
+  }, [allAttempts, selectedCourseId, courses]);
 
+  // 📈 คำนวณรายงาน
   const reportData = useMemo(() => {
     if (!attempts || attempts.length === 0) return null;
 
@@ -115,81 +117,59 @@ function ReportsContent() {
     return { totalAttempts, passingAttempts, passRate, averageScore, sortedLeaderboard };
   }, [attempts, usersMap]);
 
-  const isLoading = isAuthLoading || isProfileLoading || coursesLoading || attemptsLoading || (isAdmin && usersLoading);
+  const isLoading = isAuthLoading || isProfileLoading || attemptsLoading;
 
+  // 🚨 จัดการ error
   if (attemptsError) {
     return (
-      <div className="flex h-[60vh] items-center justify-center p-4">
-        <div className="text-center max-w-2xl">
-          <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
-          <h3 className="text-xl font-bold mb-2">Failed to Load Reports</h3>
-          <p className="text-muted-foreground mb-1">Permission denied. Please ensure:</p>
-          <ul className="text-left text-sm text-muted-foreground mb-4 space-y-1">
-            <li>• Your account has a user profile in Firestore</li>
-            <li>• Admin accounts must have <code>role: "admin"</code></li>
-            <li>• You are logged in</li>
-          </ul>
-          <p className="text-xs text-muted-foreground">
-            Error: {attemptsError.message}
-          </p>
-        </div>
+      <div className="p-6">
+        <PlaceholderContent
+          icon={AlertCircle}
+          title="Permission Denied"
+          description="You don't have permission to view reports. Please contact admin."
+        />
       </div>
     );
   }
 
+  // ⏳ กำลังโหลด
   if (isLoading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary mb-3" />
-          <p className="text-muted-foreground">Loading reports...</p>
-        </div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (!reportData || reportData.totalAttempts === 0) {
+  // 📉 ไม่มีข้อมูล
+  if (!reportData) {
     return (
       <PlaceholderContent
         icon={TrendingUp}
-        title="No Exam Data"
-        description={
-          selectedCourseId === 'all'
-            ? (isAdmin
-                ? "No exam attempts have been recorded yet."
-                : "You haven't taken any exams yet.")
-            : (isAdmin
-                ? "No attempts for this course."
-                : "You haven't taken this exam yet.")
-        }
+        title="No Data"
+        description={isAdmin ? "No attempts recorded yet." : "You haven't taken any exams."}
       />
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Reports & Analytics</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isAdmin ? 'System-wide exam performance' : 'Your personal exam results'}
+          <p className="text-sm text-muted-foreground">
+            {isAdmin ? 'System-wide exam performance' : 'Your personal results'}
           </p>
         </div>
         <div className="w-full sm:w-64">
-          <Select
-            value={selectedCourseId}
-            onValueChange={setSelectedCourseId}
-            disabled={!courses?.length}
-          >
+          <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
             <SelectTrigger>
               <SelectValue placeholder="Select course" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Courses</SelectItem>
               {courses?.map(course => (
-                <SelectItem key={course.id} value={course.id}>
-                  {course.title}
-                </SelectItem>
+                <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -217,47 +197,39 @@ function ReportsContent() {
       </div>
 
       {/* Leaderboard */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Leaderboard</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Rank</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead className="text-right">Highest Score</TableHead>
-                  <TableHead className="text-right">Attempts</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportData.sortedLeaderboard.map((user, index) => (
-                  <TableRow key={user.userId || index}>
-                    <TableCell className="font-medium w-12">{index + 1}</TableCell>
-                    <TableCell>
-                      {isAdmin ? user.name : 'You'}
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-primary">
-                      {user.highestScore}%
-                    </TableCell>
-                    <TableCell className="text-right">{user.attemptsCount}</TableCell>
+      {isAdmin && reportData.sortedLeaderboard.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle>Top Performers</CardTitle></CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Rank</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead className="text-right">Highest Score</TableHead>
+                    <TableHead className="text-right">Attempts</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {reportData.sortedLeaderboard.map((user, index) => (
+                    <TableRow key={user.userId || index}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
+                      <TableCell>{user.name}</TableCell>
+                      <TableCell className="text-right font-bold text-primary">{user.highestScore}%</TableCell>
+                      <TableCell className="text-right">{user.attemptsCount}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
 export default function ReportsPage() {
-    return (
-        <AdminAuthGuard>
-            <ReportsContent />
-        </AdminAuthGuard>
-    )
+  return <ReportsContent />;
 }

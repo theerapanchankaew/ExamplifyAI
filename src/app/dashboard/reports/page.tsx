@@ -74,10 +74,10 @@ function ReportsContent() {
     if (!allAttempts) return [];
     if (selectedCourseId === 'all') return allAttempts;
     
-    const courseId = courses?.find(c => c.id === selectedCourseId)?.id;
-    if (!courseId) return allAttempts; 
+    const course = courses?.find(c => c.id === selectedCourseId);
+    if (!course) return allAttempts; 
     
-    return allAttempts.filter(attempt => attempt.courseId === courseId);
+    return allAttempts.filter(attempt => attempt.courseId === course.id);
   }, [allAttempts, selectedCourseId, courses]);
 
   const reportData = useMemo(() => {
@@ -107,7 +107,7 @@ function ReportsContent() {
       if (attempt.score > record.highestScore) {
         record.highestScore = attempt.score;
       }
-      const attemptDate = attempt.timestamp?.toDate?.() || new Date(attempt.timestamp as any);
+      const attemptDate = attempt.timestamp ? (attempt.timestamp as unknown as Timestamp).toDate() : new Date();
       if (attemptDate > record.lastAttempt) {
         record.lastAttempt = attemptDate;
       }
