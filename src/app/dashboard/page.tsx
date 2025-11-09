@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -10,13 +11,13 @@ import { Loader2, TrendingUp, AlertCircle } from 'lucide-react';
 import type { Attempt, UserProfile } from '@/types';
 import type { Course } from '@/types/course';
 import { PlaceholderContent } from '@/components/placeholder-content';
+import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 function ReportsContent() {
   const firestore = useFirestore();
-  const { user: authUser, isUserLoading: isAuthLoading } from useUser();
+  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
-  // 🔐 Fetch user data to check role
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser?.uid) return null;
     return doc(firestore, 'users', authUser.uid);
@@ -24,47 +25,38 @@ function ReportsContent() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  // 🧠 Safely calculate isAdmin
   const isAdmin = useMemo(() => {
-    return Boolean(
-      authUser &&
-      !isAuthLoading &&
-      !isProfileLoading &&
-      userProfile?.role === 'admin'
-    );
+    return !!authUser && !isAuthLoading && !isProfileLoading && userProfile?.role === 'admin';
   }, [authUser, isAuthLoading, isProfileLoading, userProfile]);
 
   const isAuthResolved = !isAuthLoading && !isProfileLoading;
 
-  // 📚 Load courses (public)
   const coursesQuery = useMemoFirebase(() => {
     return firestore ? collection(firestore, 'courses') : null;
   }, [firestore]);
 
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
-  // 👥 Load users — only if admin
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAuthResolved || !isAdmin) return null;
-    return collection(firestore, 'users');
+    if (!firestore || !isAuthResolved) return null;
+    if (isAdmin) {
+      return collection(firestore, 'users');
+    }
+    return null; // Non-admins cannot list all users
   }, [firestore, isAuthResolved, isAdmin]);
 
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
-  // 🗺 Create map for usernames
   const usersMap = useMemo(() => {
     const map = new Map<string, UserProfile>();
     if (isAdmin && users) {
-      users.forEach(u => {
-        if (u.userId) map.set(u.userId, u);
-      });
+      users.forEach(u => u.userId && map.set(u.userId, u));
     } else if (userProfile?.userId) {
       map.set(userProfile.userId, userProfile);
     }
     return map;
   }, [isAdmin, users, userProfile]);
 
-  // 📝 Load attempts — crucial fix here ⭐
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore || !authUser || !isAuthResolved) {
       return null;
@@ -73,13 +65,11 @@ function ReportsContent() {
     if (isAdmin) {
       return query(attemptsRef); // Admin gets all
     }
-    // Non-admin gets their own
     return query(attemptsRef, where('userId', '==', authUser.uid));
   }, [firestore, authUser, isAuthResolved, isAdmin]);
 
   const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
-  // 📊 Filter by course
   const attempts = useMemo(() => {
     if (!allAttempts) return [];
     return selectedCourseId === 'all'
@@ -87,7 +77,6 @@ function ReportsContent() {
       : allAttempts.filter(attempt => attempt.courseId === selectedCourseId);
   }, [allAttempts, selectedCourseId]);
 
-  // 📈 Calculate report
   const reportData = useMemo(() => {
     if (!attempts || attempts.length === 0) return null;
 
@@ -125,10 +114,8 @@ function ReportsContent() {
     return { totalAttempts, passingAttempts, passRate, averageScore, sortedLeaderboard };
   }, [attempts, usersMap]);
 
-  // 🧮 Combined loading state
   const isLoading = isAuthLoading || isProfileLoading || coursesLoading || attemptsLoading || (isAdmin && usersLoading);
 
-  // 🚨 Error handling
   if (attemptsError) {
     return (
       <div className="flex h-[60vh] items-center justify-center p-4">
@@ -149,7 +136,6 @@ function ReportsContent() {
     );
   }
 
-  // ⏳ Loading state
   if (isLoading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
@@ -161,7 +147,6 @@ function ReportsContent() {
     );
   }
 
-  // 📉 No data state
   if (!reportData || reportData.totalAttempts === 0) {
     return (
       <PlaceholderContent
@@ -269,5 +254,11 @@ function ReportsContent() {
 }
 
 export default function ReportsPage() {
-  return <ReportsContent />;
+    return (
+        <AdminAuthGuard>
+            <ReportsContent />
+        </AdminAuthGuard>
+    )
 }
+
+    
