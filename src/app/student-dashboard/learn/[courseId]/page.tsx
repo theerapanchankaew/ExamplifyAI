@@ -19,6 +19,7 @@ const learningSections = [
     {
         title: "แนะนำรายวิชา",
         items: [
+            { title: "แนะนำตัวก่อนเริ่มเรียน (Introduce yourself)", icon: Star, status: "Incomplete", action: "Start" },
             { title: "แนะนำรายวิชาและบทเรียนออนไลน์", icon: BookText, status: "Completed", action: "View" },
             { title: "แนะนำกิจกรรมและเกณฑ์การผ่านรายวิชา", icon: ClipboardList, status: "Incomplete", action: "View" },
             { title: "แบบทดสอบความรู้เบื้องต้นก่อนเริ่มเรียน (Pre Test) (10 Questions)", icon: BrainCircuit, status: "Incomplete", action: "Start Test" },
