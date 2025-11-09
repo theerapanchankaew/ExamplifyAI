@@ -25,7 +25,7 @@ function ReportsContent() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const isAuthResolved = !isAuthLoading && !isProfileLoading;
+  const isAuthResolved = !isAuthLoading && authUser && !isProfileLoading;
 
   const isAdmin = useMemo(() => {
     return isAuthResolved && userProfile?.role === 'admin';
@@ -58,14 +58,15 @@ function ReportsContent() {
   }, [isAdmin, users, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    if (!firestore || !authUser || !isAuthResolved) {
+    if (!firestore || !isAuthResolved) {
       return null; // Wait for auth check
     }
     const attemptsRef = collection(firestore, 'attempts');
     if (isAdmin) {
       return query(attemptsRef); // Admin gets all
     }
-    return query(attemptsRef, where('userId', '==', authUser.uid));
+    // For non-admin, authUser should exist because of isAuthResolved check
+    return query(attemptsRef, where('userId', '==', authUser!.uid));
   }, [firestore, authUser, isAuthResolved, isAdmin]);
 
   const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
