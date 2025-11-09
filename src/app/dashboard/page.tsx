@@ -34,59 +34,44 @@ const chartConfig = {
 
 function AdminDashboardContent() {
     const firestore = useFirestore();
-    const { user, isUserLoading: isAuthUserLoading } = useUser();
     
-    // Explicitly get user profile to determine role
-    const userDocRef = useMemoFirebase(() => {
-      if (!firestore || !user) return null;
-      return doc(firestore, 'users', user.uid);
-    }, [firestore, user]);
-    const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
-    const isAdmin = useMemo(() => userProfile?.role === 'admin', [userProfile]);
-
+    // --- Data Fetching ---
+    // These queries are safe as they are readable by all authenticated users.
     const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
     const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
     const lessonsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'lessons') : null, [firestore]);
     const { data: lessons, isLoading: lessonsLoading } = useCollection<Lesson>(lessonsQuery);
-
+    
+    // --- Admin-only Data Fetching ---
+    // These queries require admin privileges and are deferred until the user's role is confirmed.
     const sevenDaysAgo = useMemo(() => startOfDay(subDays(new Date(), 6)), []);
     
+    // This query is now inside the AdminDashboardContent which is protected by AdminAuthGuard
+    // so we can assume the user is an admin here.
     const attemptsQuery = useMemoFirebase(() => {
-        // Defer query creation until we know the user's role by ensuring auth and profile are loaded.
-        if (!firestore || isAuthUserLoading || isProfileLoading) return null;
-        
-        const baseQuery = collection(firestore, 'attempts');
-
-        // If admin, fetch all attempts in the date range
-        if (isAdmin) {
-             return query(
-                baseQuery,
-                where('timestamp', '>=', sevenDaysAgo),
-                orderBy('timestamp', 'desc')
-            );
-        }
-        
-        // If not admin, but we have a user, fetch only their attempts
-        if (user) {
-            return query(
-                baseQuery,
-                where('userId', '==', user.uid),
-                where('timestamp', '>=', sevenDaysAgo),
-                orderBy('timestamp', 'desc')
-            );
-        }
-        
-        return null; // Don't query if no user and not admin
-    }, [firestore, user, isAdmin, isAuthUserLoading, isProfileLoading, sevenDaysAgo]);
-
+        if (!firestore) return null;
+        return query(
+            collection(firestore, 'attempts'),
+            where('timestamp', '>=', sevenDaysAgo),
+            orderBy('timestamp', 'desc')
+        );
+    }, [firestore, sevenDaysAgo]);
     const { data: recentAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
-    
-    const { totalPasses, overallPassRate } = useMemo(() => {
-        if (!recentAttempts || recentAttempts.length === 0) return { totalPasses: 0, overallPassRate: 0 };
+
+    const recentUsersQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'users'), orderBy('name', 'desc'), limit(5));
+    }, [firestore]);
+    const { data: recentUsers, isLoading: usersLoading } = useCollection<UserProfile>(recentUsersQuery);
+
+
+    // --- Data Processing & Memoization ---
+    const { overallPassRate } = useMemo(() => {
+        if (!recentAttempts || recentAttempts.length === 0) return { overallPassRate: 0 };
         const passes = recentAttempts.filter(a => a.pass).length;
         const rate = (passes / recentAttempts.length) * 100;
-        return { totalPasses: passes, overallPassRate: isNaN(rate) ? 0 : rate };
+        return { overallPassRate: isNaN(rate) ? 0 : rate };
     }, [recentAttempts]);
 
     const chartData = useMemo(() => {
@@ -109,12 +94,7 @@ function AdminDashboardContent() {
         });
     }, [recentAttempts]);
 
-    const recentUsersQuery = useMemoFirebase(() => {
-        if (!firestore || !isAdmin) return null; // Only fetch users if admin
-        return query(collection(firestore, 'users'), orderBy('name', 'desc'), limit(5));
-    }, [firestore, isAdmin]);
-    const { data: recentUsers, isLoading: usersLoading, error: usersError } = useCollection<UserProfile>(recentUsersQuery);
-
+    // --- Helper Functions ---
     const getAvatarForUser = (user: UserProfile, index: number) => {
         const imageId = user.role === 'admin' ? 'user-avatar-1' : `student-avatar-1`;
         return PlaceHolderImages.find(img => img.id === imageId) || PlaceHolderImages[1]; 
@@ -133,9 +113,8 @@ function AdminDashboardContent() {
         }
     }
     
-    // We now consider attemptsLoading as part of the overall loading state.
-    // The query for attempts is deferred until the role is known.
-    const isLoading = coursesLoading || lessonsLoading || attemptsLoading || usersLoading || isProfileLoading || isAuthUserLoading;
+    // --- Loading & Error States ---
+    const isLoading = coursesLoading || lessonsLoading || attemptsLoading || usersLoading;
 
     if (isLoading && !attemptsError) {
         return (
@@ -149,8 +128,9 @@ function AdminDashboardContent() {
         return (
             <div className="flex h-full min-h-[80vh] items-center justify-center text-destructive p-4 rounded-md bg-destructive/10">
                 <div className="max-w-xl text-center">
-                    <h3 className="font-bold mb-2">Error Fetching Attempts Data</h3>
-                    <pre className='whitespace-pre-wrap text-sm'>{attemptsError.message}</pre>
+                    <h3 className="font-bold mb-2">Error Fetching Dashboard Data</h3>
+                    <p>You may not have permission to view all attempts. This dashboard is for administrators.</p>
+                    <pre className='mt-4 whitespace-pre-wrap text-sm'>{attemptsError.message}</pre>
                 </div>
             </div>
         )
@@ -221,45 +201,41 @@ function AdminDashboardContent() {
                         <CardTitle>Recent Users</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {isAdmin ? (
-                            <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                <TableRow>
-                                    <TableHead>User</TableHead>
-                                    <TableHead>Email</TableHead>
-                                    <TableHead>Role</TableHead>
+                        <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                            <TableRow>
+                                <TableHead>User</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Role</TableHead>
+                            </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                            {recentUsers && recentUsers.map((user, index) => {
+                                const avatar = getAvatarForUser(user, index);
+                                return (
+                                <TableRow key={user.userId}>
+                                    <TableCell>
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-9 w-9">
+                                        <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
+                                        <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
+                                        </Avatar>
+                                        <span className="font-medium truncate w-32">{user.name}</span>
+                                    </div>
+                                    </TableCell>
+                                    <TableCell><div className="truncate w-40">{user.email}</div></TableCell>
+                                    <TableCell>
+                                    <Badge variant={getRoleVariant(user.role)}>
+                                        {user.role || 'N/A'}
+                                        </Badge>
+                                    </TableCell>
                                 </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                {recentUsers && recentUsers.map((user, index) => {
-                                    const avatar = getAvatarForUser(user, index);
-                                    return (
-                                    <TableRow key={user.userId}>
-                                        <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <Avatar className="h-9 w-9">
-                                            <AvatarImage src={user.avatarUrl || avatar?.imageUrl} alt={user.name || 'User'} data-ai-hint={avatar?.imageHint} />
-                                            <AvatarFallback>{user.name?.charAt(0) || 'U'}</AvatarFallback>
-                                            </Avatar>
-                                            <span className="font-medium truncate w-32">{user.name}</span>
-                                        </div>
-                                        </TableCell>
-                                        <TableCell><div className="truncate w-40">{user.email}</div></TableCell>
-                                        <TableCell>
-                                        <Badge variant={getRoleVariant(user.role)}>
-                                            {user.role || 'N/A'}
-                                            </Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                    )
-                                    })}
-                                </TableBody>
-                            </Table>
-                            </div>
-                        ): (
-                            <p className="text-sm text-muted-foreground">User list is only visible to administrators.</p>
-                        )}
+                                )
+                                })}
+                            </TableBody>
+                        </Table>
+                        </div>
                     </CardContent>
                  </Card>
             </div>
@@ -268,8 +244,6 @@ function AdminDashboardContent() {
 }
 
 export default function DashboardPage() {
-  // The AdminAuthGuard now correctly wraps the content.
-  // The content itself defers queries until the user's role is confirmed.
   return (
     <AdminAuthGuard>
       <AdminDashboardContent />
