@@ -25,11 +25,11 @@ function ReportsContent() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const isAdmin = useMemo(() => {
-    return !!authUser && !isAuthLoading && !isProfileLoading && userProfile?.role === 'admin';
-  }, [authUser, isAuthLoading, isProfileLoading, userProfile]);
-
   const isAuthResolved = !isAuthLoading && !isProfileLoading;
+
+  const isAdmin = useMemo(() => {
+    return isAuthResolved && userProfile?.role === 'admin';
+  }, [isAuthResolved, userProfile]);
 
   const coursesQuery = useMemoFirebase(() => {
     return firestore ? collection(firestore, 'courses') : null;
@@ -260,5 +260,3 @@ export default function ReportsPage() {
         </AdminAuthGuard>
     )
 }
-
-    
