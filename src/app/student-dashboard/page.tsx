@@ -69,7 +69,7 @@ function StudentDashboardContent() {
     const inProgressIds = enrolledCourseIds.filter(id => !passedIds.has(id));
     const inProgressCourses = inProgressIds.map(id => coursesMap.get(id)).filter((c): c is Course => !!c);
     
-    return { coursesInProgress: inProgressCourses, passedCourseIds };
+    return { coursesInProgress: inProgressCourses, passedCourseIds: passedIds };
   }, [allAttempts, enrolledCourseIds, coursesMap]);
 
   const recentAttempts = useMemo<EnrichedAttempt[]>(() => {
