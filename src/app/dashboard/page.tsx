@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -14,7 +13,7 @@ import { PlaceholderContent } from '@/components/placeholder-content';
 
 function ReportsContent() {
   const firestore = useFirestore();
-  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
+  const { user: authUser, isUserLoading: isAuthLoading } from useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
   // 🔐 Fetch user data to check role
