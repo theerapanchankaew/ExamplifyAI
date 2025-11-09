@@ -18,69 +18,32 @@ import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 function ReportsContent() {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
-
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
-  const isAdmin = useMemo(() => userProfile?.role === 'admin', [userProfile]);
-
+  // We are inside AdminAuthGuard, so we can assume the user is an admin.
+  // This simplifies data fetching logic.
   const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
   
-  // Conditionally fetch users only if admin
-  const usersQuery = useMemoFirebase(() => {
-    // Defer query until we know the user is an admin.
-    if (!firestore || !isAdmin) return null; 
-    return collection(firestore, 'users');
-  }, [firestore, isAdmin]);
+  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
   
   const usersMap = useMemo(() => {
       const map = new Map<string, UserProfile>();
-      if (isAdmin && users) {
+      if (users) {
         users.forEach(u => map.set(u.userId, u));
-      } else if (userProfile) { // For non-admin, create a map with only their own profile
-        map.set(userProfile.userId, userProfile);
       }
       return map;
-  }, [users, isAdmin, userProfile]);
+  }, [users]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    // CRITICAL: Defer query creation until all auth/profile loading is complete.
-    if (isUserLoading || isProfileLoading) {
-      return null;
-    }
-    
-    // Once loading is done, we must have a firestore instance to proceed.
     if (!firestore) return null;
-
     const baseQuery = collection(firestore, 'attempts');
-    
-    // If we've determined the user is an admin
-    if (isAdmin) {
-      if (selectedCourseId !== 'all') {
-        return query(baseQuery, where('courseId', '==', selectedCourseId));
-      }
-      return baseQuery; // Admin, all courses
+    if (selectedCourseId !== 'all') {
+      return query(baseQuery, where('courseId', '==', selectedCourseId));
     }
-    
-    // If NOT an admin, they must have a `user` object if they are logged in.
-    if (user) {
-        if (selectedCourseId !== 'all') {
-          return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
-        }
-        return query(baseQuery, where('userId', '==', user.uid)); // Non-admin, all their courses
-    }
-
-    // Default to null if no conditions are met (e.g., logged out user somehow hits this)
-    return null; 
-    
-  }, [firestore, user, isAdmin, isUserLoading, isProfileLoading, selectedCourseId]);
+    return baseQuery; // Admin can see all attempts
+  }, [firestore, selectedCourseId]);
 
   const { data: attempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
   
@@ -123,7 +86,7 @@ function ReportsContent() {
   }, [attempts, usersMap]);
 
 
-  const isLoading = coursesLoading || attemptsLoading || (isAdmin && usersLoading) || isProfileLoading || isUserLoading;
+  const isLoading = coursesLoading || attemptsLoading || usersLoading;
   
    if (attemptsError) {
         return (
@@ -143,21 +106,19 @@ function ReportsContent() {
           <h1 className="text-3xl font-bold font-headline">Reports & Analytics</h1>
           <p className="text-muted-foreground mt-1">Analyze exam results, pass rates, and performance.</p>
         </div>
-        {isAdmin && (
-            <div className="w-full sm:w-64">
-                <Select onValueChange={setSelectedCourseId} defaultValue="all" disabled={isLoading}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select a course..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Courses</SelectItem>
-                            {courses?.map(course => (
-                                <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-            </div>
-        )}
+        <div className="w-full sm:w-64">
+            <Select onValueChange={setSelectedCourseId} defaultValue="all" disabled={isLoading}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select a course..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Courses</SelectItem>
+                        {courses?.map(course => (
+                            <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+        </div>
       </div>
       
       {isLoading ? (
