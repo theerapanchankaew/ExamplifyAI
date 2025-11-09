@@ -17,7 +17,7 @@ function ReportsContent() {
   const { user: authUser, isUserLoading: isAuthLoading } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
 
-  // 🔐 ดึงข้อมูลผู้ใช้เพื่อตรวจสอบบทบาท
+  // 🔐 Fetch user data to check role
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser?.uid) return null;
     return doc(firestore, 'users', authUser.uid);
@@ -25,7 +25,7 @@ function ReportsContent() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  // 🧠 คำนวณisAdminอย่างปลอดภัย
+  // 🧠 Safely calculate isAdmin
   const isAdmin = useMemo(() => {
     return Boolean(
       authUser &&
@@ -35,22 +35,24 @@ function ReportsContent() {
     );
   }, [authUser, isAuthLoading, isProfileLoading, userProfile]);
 
-  // 📚 โหลด courses (public)
+  const isAuthResolved = !isAuthLoading && !isProfileLoading;
+
+  // 📚 Load courses (public)
   const coursesQuery = useMemoFirebase(() => {
     return firestore ? collection(firestore, 'courses') : null;
   }, [firestore]);
 
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
-  // 👥 โหลด users — เฉพาะเมื่อเป็น admin
+  // 👥 Load users — only if admin
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
+    if (!firestore || !isAuthResolved || !isAdmin) return null;
     return collection(firestore, 'users');
-  }, [firestore, isAdmin]);
+  }, [firestore, isAuthResolved, isAdmin]);
 
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
 
-  // 🗺 สร้าง map สำหรับแสดงชื่อผู้ใช้
+  // 🗺 Create map for usernames
   const usersMap = useMemo(() => {
     const map = new Map<string, UserProfile>();
     if (isAdmin && users) {
@@ -63,27 +65,22 @@ function ReportsContent() {
     return map;
   }, [isAdmin, users, userProfile]);
 
-  // 📝 โหลด attempts — แก้ไขจุดสำคัญที่นี่ ⭐
+  // 📝 Load attempts — crucial fix here ⭐
   const attemptsQuery = useMemoFirebase(() => {
-    // 🔒 รอจนกว่า auth และ profile จะ resolve จริงๆ
-    if (!firestore || !authUser || isAuthLoading || isProfileLoading) {
+    if (!firestore || !authUser || !isAuthResolved) {
       return null;
     }
-
     const attemptsRef = collection(firestore, 'attempts');
-
-    // ✅ ใช้ query(ref) แทน ref — ป้องกันการ trigger 'list'
     if (isAdmin) {
-      return query(attemptsRef); // ← แอดมินดูได้ทั้งหมด
+      return query(attemptsRef); // Admin gets all
     }
-
-    // non-admin: อ่านเฉพาะของตัวเอง
+    // Non-admin gets their own
     return query(attemptsRef, where('userId', '==', authUser.uid));
-  }, [firestore, authUser, isAuthLoading, isProfileLoading, isAdmin]);
+  }, [firestore, authUser, isAuthResolved, isAdmin]);
 
   const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
-  // 📊 กรองตาม course
+  // 📊 Filter by course
   const attempts = useMemo(() => {
     if (!allAttempts) return [];
     return selectedCourseId === 'all'
@@ -91,7 +88,7 @@ function ReportsContent() {
       : allAttempts.filter(attempt => attempt.courseId === selectedCourseId);
   }, [allAttempts, selectedCourseId]);
 
-  // 📈 คำนวณรายงาน
+  // 📈 Calculate report
   const reportData = useMemo(() => {
     if (!attempts || attempts.length === 0) return null;
 
@@ -129,10 +126,10 @@ function ReportsContent() {
     return { totalAttempts, passingAttempts, passRate, averageScore, sortedLeaderboard };
   }, [attempts, usersMap]);
 
-  // 🧮 สถานะโหลดรวม
+  // 🧮 Combined loading state
   const isLoading = isAuthLoading || isProfileLoading || coursesLoading || attemptsLoading || (isAdmin && usersLoading);
 
-  // 🚨 จัดการ error
+  // 🚨 Error handling
   if (attemptsError) {
     return (
       <div className="flex h-[60vh] items-center justify-center p-4">
@@ -153,7 +150,7 @@ function ReportsContent() {
     );
   }
 
-  // ⏳ กำลังโหลด
+  // ⏳ Loading state
   if (isLoading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
@@ -165,7 +162,7 @@ function ReportsContent() {
     );
   }
 
-  // 📉 ไม่มีข้อมูล
+  // 📉 No data state
   if (!reportData || reportData.totalAttempts === 0) {
     return (
       <PlaceholderContent
