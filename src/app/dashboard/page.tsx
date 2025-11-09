@@ -31,13 +31,15 @@ function DashboardDataContainer() {
     return !!authUser && !isAuthLoading && !isProfileLoading && userProfile?.role === 'admin';
   }, [authUser, isAuthLoading, isProfileLoading, userProfile]);
 
+  const isAuthResolved = !isAuthLoading && !isProfileLoading;
+
   // Now it's safe to query for all users and attempts because this component only mounts for admins.
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(
-    useMemoFirebase(() => (firestore && isAdmin) ? query(collection(firestore, 'users')) : null, [firestore, isAdmin])
+    useMemoFirebase(() => (firestore && isAuthResolved && isAdmin) ? query(collection(firestore, 'users')) : null, [firestore, isAuthResolved, isAdmin])
   );
 
   const { data: allAttempts, isLoading: attemptsLoading } = useCollection<Attempt>(
-    useMemoFirebase(() => (firestore && isAdmin) ? query(collection(firestore, 'attempts')) : null, [firestore, isAdmin])
+    useMemoFirebase(() => (firestore && isAuthResolved && isAdmin) ? query(collection(firestore, 'attempts')) : null, [firestore, isAuthResolved, isAdmin])
   );
 
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(
@@ -105,7 +107,7 @@ function DashboardDataContainer() {
     return { totalAttempts, passingAttempts, passRate, averageScore, sortedLeaderboard };
   }, [attempts, usersMap]);
 
-  const isLoading = usersLoading || attemptsLoading || coursesLoading;
+  const isLoading = usersLoading || attemptsLoading || coursesLoading || !isAuthResolved;
 
   if (isLoading) {
     return (
