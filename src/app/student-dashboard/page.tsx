@@ -4,8 +4,8 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit, documentId, Timestamp } from 'firebase/firestore';
+import { useFirestore, useUser, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, limit, documentId, Timestamp, doc } from 'firebase/firestore';
 import { format } from 'date-fns';
 
 import type { UserProfile, Attempt, CourseAchievement } from '@/types';
