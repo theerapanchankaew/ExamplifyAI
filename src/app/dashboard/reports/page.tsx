@@ -34,6 +34,7 @@ function ReportsContent() {
   
   // Conditionally fetch users only if admin
   const usersQuery = useMemoFirebase(() => {
+    // Defer query until we know the user is an admin.
     if (!firestore || !isAdmin) return null; 
     return collection(firestore, 'users');
   }, [firestore, isAdmin]);
@@ -50,9 +51,8 @@ function ReportsContent() {
   }, [users, isAdmin, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    // CRITICAL: Defer query creation until we are certain about the user's role and auth status.
-    // Return null if any dependency for role determination is still loading.
-    if (!firestore || isUserLoading || isProfileLoading) {
+    // CRITICAL: Defer query creation until all auth/profile loading is complete.
+    if (isUserLoading || isProfileLoading || !firestore) {
       return null;
     }
     
@@ -74,7 +74,7 @@ function ReportsContent() {
         return query(baseQuery, where('userId', '==', user.uid)); // Non-admin, all their courses
     }
 
-    // If there's no user after all loading checks, they cannot query anything.
+    // Default to null if no conditions are met (e.g., logged out user somehow hits this)
     return null; 
     
   }, [firestore, user, isAdmin, isUserLoading, isProfileLoading, selectedCourseId]);
