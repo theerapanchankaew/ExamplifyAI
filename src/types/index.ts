@@ -19,7 +19,7 @@ export type Attempt = {
     id: string;
     userId: string;
     examId: string;
-    courseId?: string; // Added to link attempt directly to a course
+    courseId: string;
     score: number;
     pass: boolean;
     timestamp?: Timestamp; // Timestamps from firestore will be of this type
