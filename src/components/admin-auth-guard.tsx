@@ -28,21 +28,16 @@ export function AdminAuthGuard({
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-  // Derive state declaratively
-  const isAdmin = useMemo(() => {
-    return !!authUser && !isAuthLoading && !isProfileLoading && userProfile?.role === 'admin';
-  }, [authUser, isAuthLoading, isProfileLoading, userProfile]);
-
   const isChecking = isAuthLoading || (authUser && isProfileLoading);
 
-  // Redirect unauthenticated users (optional)
+  // Redirect unauthenticated users after checks are complete
   useEffect(() => {
     if (!isChecking && redirectUnauthenticated && !authUser) {
       router.push('/');
     }
   }, [isChecking, authUser, redirectUnauthenticated, router]);
 
-  // Loading state
+  // While checking, show a loading indicator and nothing else.
   if (isChecking) {
     return (
       <div className="flex h-full min-h-[80vh] items-center justify-center" role="status" aria-live="polite">
@@ -52,26 +47,27 @@ export function AdminAuthGuard({
     );
   }
 
-  // Authenticated but not admin
-  if (!isAdmin) {
-    // If not authenticated and redirection is disabled, show access denied
-    if (!authUser && !redirectUnauthenticated) {
-       return (
-        <PlaceholderContent
-            title="Authentication Required"
-            description="You need to be logged in to view this page."
-        />
-       );
-    }
-    
-    return (
+  // After checking, if the user is an admin, render the children.
+  if (userProfile?.role === 'admin') {
+    return <>{children}</>;
+  }
+  
+  // If not authenticated and redirection is disabled, show a specific message.
+  if (!authUser && !redirectUnauthenticated) {
+      return (
       <PlaceholderContent
-        title="Access Denied"
-        description="You do not have permission to view this page."
+          title="Authentication Required"
+          description="You need to be logged in to view this page."
       />
-    );
+      );
   }
 
-  // Authorized: only render children if admin
-  return <>{children}</>;
+  // Otherwise, for any non-admin user, show access denied.
+  // This also covers the case where the user is authenticated but has no profile or is not an admin.
+  return (
+    <PlaceholderContent
+      title="Access Denied"
+      description="You do not have permission to view this page."
+    />
+  );
 }
