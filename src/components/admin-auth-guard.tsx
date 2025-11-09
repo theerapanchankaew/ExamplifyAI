@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import type { UserProfile } from '@/types';
 import { Loader2 } from 'lucide-react';
 import { PlaceholderContent } from './placeholder-content';
@@ -71,6 +72,6 @@ export function AdminAuthGuard({
     );
   }
 
-  // Authorized
+  // Authorized: only render children if admin
   return <>{children}</>;
 }
