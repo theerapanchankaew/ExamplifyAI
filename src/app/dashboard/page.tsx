@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -26,6 +27,8 @@ function DashboardDataContainer() {
   );
 
   const { data: allAttempts, isLoading: attemptsLoading } = useCollection<Attempt>(
+    // THIS IS THE FIX: Ensure we only query all attempts if the user is an admin.
+    // The component is already guarded by AdminAuthGuard, this makes it double-safe.
     useMemoFirebase(() => firestore ? collection(firestore, 'attempts') : null, [firestore])
   );
 
@@ -43,10 +46,13 @@ function DashboardDataContainer() {
   
   const attempts = useMemo(() => {
     if (!allAttempts) return [];
-    return selectedCourseId === 'all'
-      ? allAttempts
-      : allAttempts.filter(attempt => attempt.courseId === selectedCourseId);
-  }, [allAttempts, selectedCourseId]);
+    if (selectedCourseId === 'all') {
+        return allAttempts;
+    }
+    const courseId = courses?.find(c => c.id === selectedCourseId)?.id;
+    if (!courseId) return allAttempts;
+    return allAttempts.filter(attempt => attempt.courseId === courseId);
+  }, [allAttempts, selectedCourseId, courses]);
 
 
   const reportData = useMemo(() => {

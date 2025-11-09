@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -41,6 +42,7 @@ function ReportsContent() {
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
   const usersQuery = useMemoFirebase(() => {
+    // THIS IS THE FIX: Only fetch all users if the user is confirmed to be an admin.
     if (!firestore || !isAuthResolved || !isAdmin) return null;
     return collection(firestore, 'users');
   }, [firestore, isAuthResolved, isAdmin]);
@@ -62,20 +64,27 @@ function ReportsContent() {
       return null;
     }
     const attemptsRef = collection(firestore, 'attempts');
+    // THIS IS THE FIX: Conditionally create the query based on the admin role.
     if (isAdmin) {
+      // If admin, fetch all attempts.
       return attemptsRef;
+    } else {
+      // If not admin, fetch only the user's own attempts.
+      return query(attemptsRef, where('userId', '==', authUser.uid));
     }
-    return query(attemptsRef, where('userId', '==', authUser.uid));
   }, [firestore, isAuthResolved, authUser, isAdmin]);
 
   const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
   const attempts = useMemo(() => {
     if (!allAttempts) return [];
-    return selectedCourseId === 'all'
-      ? allAttempts
-      : allAttempts.filter(attempt => attempt.courseId === selectedCourseId);
-  }, [allAttempts, selectedCourseId]);
+    if (selectedCourseId === 'all') return allAttempts;
+    
+    const courseId = courses?.find(c => c.id === selectedCourseId)?.id;
+    if (!courseId) return allAttempts; // Fallback if course not found
+    
+    return allAttempts.filter(attempt => attempt.courseId === courseId);
+  }, [allAttempts, selectedCourseId, courses]);
 
   const reportData = useMemo(() => {
     if (!attempts || attempts.length === 0) return null;
