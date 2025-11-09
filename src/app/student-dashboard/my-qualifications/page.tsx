@@ -19,7 +19,7 @@ export default function MyQualificationsPage() {
   // 1. Fetch the user's achievements
   const achievementsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return collection(firestore, `users/${user.uid}/achievements`);
+    return query(collection(firestore, `users/${user.uid}/achievements`));
   }, [firestore, user]);
   const { data: achievements, isLoading: achievementsLoading } = useCollection<UserAchievement>(achievementsQuery);
   const achievedPairs = useMemo(() => new Set(achievements?.map(a => a.pair)), [achievements]);
