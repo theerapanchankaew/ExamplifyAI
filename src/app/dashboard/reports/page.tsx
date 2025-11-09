@@ -35,7 +35,6 @@ function ReportsContent() {
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
   
   const usersQuery = useMemoFirebase(() => {
-    // Only fetch all users if the user is an admin
     if (!firestore || !isAdmin) return null;
     return collection(firestore, 'users');
   }, [firestore, isAdmin]);
@@ -46,24 +45,31 @@ function ReportsContent() {
       if (users) {
         users.forEach(u => map.set(u.userId, u));
       } else if (userProfile) {
-        // If not admin, at least include the current user
         map.set(userProfile.userId, userProfile);
       }
       return map;
   }, [users, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    // For admins, fetch all attempts. For others, fetch only their own.
+    // Crucially, wait until auth state and admin role are fully resolved before creating a query.
+    if (!firestore || isAuthLoading || isProfileLoading) {
+      return null;
+    }
+    
     const attemptsCollection = collection(firestore, 'attempts');
+
+    // Only fetch all attempts if the user is confirmed to be an admin.
     if (isAdmin) {
       return attemptsCollection;
     }
+    // For non-admins, fetch only their own attempts.
     if (authUser) {
       return query(attemptsCollection, where('userId', '==', authUser.uid));
     }
-    return null; // Return null if not admin and not logged in
-  }, [firestore, isAdmin, authUser]);
+    // If no user is logged in, no query should be made.
+    return null; 
+  }, [firestore, isAdmin, authUser, isAuthLoading, isProfileLoading]);
+
 
   const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
