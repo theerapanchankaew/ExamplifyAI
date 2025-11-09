@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useForm } from "react-hook-form";
@@ -57,15 +57,29 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // 2. Create user profile in Firestore
-      await setDoc(doc(firestore, "users", user.uid), {
+      const userProfileData = {
         userId: user.uid,
         name: values.name,
         email: values.email,
         role: 'student', // Default role
         cabTokens: 1000, // Give initial tokens
         enrolledCourseIds: [], // Initialize enrolled courses
-      });
+      };
+      
+      const userDocRef = doc(firestore, "users", user.uid);
+
+      // 2. Create user profile in Firestore (non-blocking)
+      setDoc(userDocRef, userProfileData)
+        .catch((error) => {
+            console.error("Failed to create user profile in Firestore:", error);
+            // Even if this fails, the user is created in Auth. We should let them know.
+            // A more robust system might queue this for retry.
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'create',
+                requestResourceData: userProfileData
+            }));
+        });
       
       toast({
         title: "Account Created!",
