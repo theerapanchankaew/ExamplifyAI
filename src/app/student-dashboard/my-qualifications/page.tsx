@@ -32,7 +32,7 @@ export default function MyQualificationsPage() {
   const { data: masterCourses, isLoading: masterCoursesLoading } = useCollection<MasterCourse>(masterCoursesQuery);
 
   const qualifications = useMemo(() => {
-    if (!masterCourses) return [];
+    if (!masterCourses || !achievedPairs) return [];
     return masterCourses.map(mc => {
       const requiredCount = mc.requiredCompetencies.length;
       const achievedCount = mc.requiredCompetencies.filter(rc => 
@@ -47,7 +47,10 @@ export default function MyQualificationsPage() {
         progress,
         isCompleted
       };
-    }).sort((a,b) => b.progress - a.progress); // Sort by progress
+    })
+    // Filter to only show qualifications with progress, and sort by that progress
+    .filter(q => q.achievedCount > 0)
+    .sort((a,b) => b.progress - a.progress); 
   }, [masterCourses, achievedPairs]);
 
   const isLoading = achievementsLoading || masterCoursesLoading;
@@ -64,8 +67,8 @@ export default function MyQualificationsPage() {
       return (
           <PlaceholderContent
             icon={Award}
-            title="No Master Qualifications Found"
-            description="The administrators have not set up any master qualifications or certification paths yet."
+            title="No Progress Towards Qualifications Yet"
+            description="Your earned qualifications and progress towards master certificates will appear here once you pass the required course exams."
           />
       )
   }
