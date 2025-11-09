@@ -18,26 +18,53 @@ import { AdminAuthGuard } from '@/components/admin-auth-guard';
 
 function ReportsContent() {
   const firestore = useFirestore();
+  const { user: authUser, isUserLoading: isAuthLoading } = useUser();
   const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !authUser) return null;
+    return doc(firestore, 'users', authUser.uid);
+  }, [firestore, authUser]);
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+
+  const isAdmin = useMemo(() => {
+    return !!authUser && !isAuthLoading && !isProfileLoading && userProfile?.role === 'admin';
+  }, [authUser, isAuthLoading, isProfileLoading, userProfile]);
 
   const coursesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'courses') : null, [firestore]);
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
   
-  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const usersQuery = useMemoFirebase(() => {
+    // Only fetch all users if the user is an admin
+    if (!firestore || !isAdmin) return null;
+    return collection(firestore, 'users');
+  }, [firestore, isAdmin]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
   
   const usersMap = useMemo(() => {
       const map = new Map<string, UserProfile>();
       if (users) {
         users.forEach(u => map.set(u.userId, u));
+      } else if (userProfile) {
+        // If not admin, at least include the current user
+        map.set(userProfile.userId, userProfile);
       }
       return map;
-  }, [users]);
+  }, [users, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'attempts');
-  }, [firestore]);
+    // For admins, fetch all attempts. For others, fetch only their own.
+    const attemptsCollection = collection(firestore, 'attempts');
+    if (isAdmin) {
+      return attemptsCollection;
+    }
+    if (authUser) {
+      return query(attemptsCollection, where('userId', '==', authUser.uid));
+    }
+    return null; // Return null if not admin and not logged in
+  }, [firestore, isAdmin, authUser]);
+
   const { data: allAttempts, isLoading: attemptsLoading, error: attemptsError } = useCollection<Attempt>(attemptsQuery);
 
   const attempts = useMemo(() => {
@@ -85,7 +112,7 @@ function ReportsContent() {
   }, [attempts, usersMap]);
 
 
-  const isLoading = coursesLoading || attemptsLoading || usersLoading;
+  const isLoading = coursesLoading || attemptsLoading || usersLoading || isAuthLoading || isProfileLoading;
   
    if (attemptsError) {
         return (
@@ -195,3 +222,5 @@ export default function ReportsPage() {
     </AdminAuthGuard>
   );
 }
+
+    
