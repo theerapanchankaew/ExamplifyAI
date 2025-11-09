@@ -153,9 +153,11 @@ export default function MyCoursesPage() {
                 <Badge variant="secondary" className="absolute top-2 right-2">{course.difficulty}</Badge>
               </div>
               <div className="flex flex-col flex-grow p-6">
-                <CardTitle className="text-lg font-semibold line-clamp-2 flex-grow">{course.title}</CardTitle>
-                {course.description && <CardDescription className="line-clamp-3 text-sm mt-1 flex-grow">{course.description}</CardDescription>}
-                 <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                <div className="flex-grow">
+                  <CardTitle className="text-lg font-semibold line-clamp-2">{course.title}</CardTitle>
+                  {course.description && <CardDescription className="line-clamp-3 text-sm mt-1">{course.description}</CardDescription>}
+                </div>
+                 <div className="flex flex-col gap-2 mt-4">
                     <Button 
                         className="w-full" 
                         onClick={() => handleStartLearning(course.id)}
