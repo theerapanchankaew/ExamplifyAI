@@ -74,7 +74,7 @@ function ReportsContent() {
 
     // ✅ ใช้ query(ref) แทน ref — ป้องกันการ trigger 'list'
     if (isAdmin) {
-      return query(attemptsRef); // ← ไม่ใช่ attemptsRef เปล่าๆ
+      return query(attemptsRef); // ← แอดมินดูได้ทั้งหมด
     }
 
     // non-admin: อ่านเฉพาะของตัวเอง
@@ -93,7 +93,7 @@ function ReportsContent() {
 
   // 📈 คำนวณรายงาน
   const reportData = useMemo(() => {
-    if (attempts.length === 0) return null;
+    if (!attempts || attempts.length === 0) return null;
 
     const totalAttempts = attempts.length;
     const passingAttempts = attempts.filter(a => a.pass).length;
@@ -130,7 +130,7 @@ function ReportsContent() {
   }, [attempts, usersMap]);
 
   // 🧮 สถานะโหลดรวม
-  const isLoading = isAuthLoading || isProfileLoading || coursesLoading || attemptsLoading || usersLoading;
+  const isLoading = isAuthLoading || isProfileLoading || coursesLoading || attemptsLoading || (isAdmin && usersLoading);
 
   // 🚨 จัดการ error
   if (attemptsError) {
