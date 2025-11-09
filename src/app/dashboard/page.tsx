@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { subDays, format, startOfDay } from 'date-fns';
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { PlaceholderContent } from "@/components/placeholder-content";
-import { AdminAuthGuard } from '@/components/admin-auth-guard';
+import { AdminAuthGuard } from "@/components/admin-auth-guard';
 
 
 const chartConfig = {
