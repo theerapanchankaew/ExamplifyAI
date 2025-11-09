@@ -50,14 +50,15 @@ function ReportsContent() {
   }, [users, isAdmin, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    // Defer query creation until we know the user's role and auth status.
+    // CRITICAL: Defer query creation until we are certain about the user's role and auth status.
+    // Return null if any dependency for role determination is still loading.
     if (!firestore || isUserLoading || isProfileLoading) {
       return null;
     }
     
     const baseQuery = collection(firestore, 'attempts');
     
-    // If we've finished loading and determined the user is an admin
+    // If loading is finished and we've determined the user is an admin
     if (isAdmin) {
       if (selectedCourseId !== 'all') {
         return query(baseQuery, where('courseId', '==', selectedCourseId));
@@ -65,7 +66,7 @@ function ReportsContent() {
       return baseQuery; // Admin, all courses
     }
     
-    // If we've finished loading and the user is NOT an admin, they must have a user object.
+    // If loading is finished and the user is NOT an admin, they must have a `user` object if they are logged in.
     if (user) {
         if (selectedCourseId !== 'all') {
           return query(baseQuery, where('userId', '==', user.uid), where('courseId', '==', selectedCourseId));
@@ -73,7 +74,7 @@ function ReportsContent() {
         return query(baseQuery, where('userId', '==', user.uid)); // Non-admin, all their courses
     }
 
-    // If there's no user after loading, they can't query anything.
+    // If there's no user after all loading checks, they cannot query anything.
     return null; 
     
   }, [firestore, user, isAdmin, isUserLoading, isProfileLoading, selectedCourseId]);
