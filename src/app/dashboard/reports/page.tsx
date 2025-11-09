@@ -35,23 +35,24 @@ function ReportsContent() {
   const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
   
   const usersQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
+    if (!firestore || isAuthLoading || isProfileLoading) return null; // Wait for checks
+    if (!isAdmin) return null; // Don't query if not admin
     return collection(firestore, 'users');
-  }, [firestore, isAdmin]);
+  }, [firestore, isAdmin, isAuthLoading, isProfileLoading]);
   const { data: users, isLoading: usersLoading } = useCollection<UserProfile>(usersQuery);
   
   const usersMap = useMemo(() => {
       const map = new Map<string, UserProfile>();
       if (users) {
         users.forEach(u => map.set(u.userId, u));
-      } else if (userProfile) {
+      } else if (userProfile) { // Fallback for non-admin's own data
         map.set(userProfile.userId, userProfile);
       }
       return map;
   }, [users, userProfile]);
 
   const attemptsQuery = useMemoFirebase(() => {
-    // Crucially, wait until auth state and admin role are fully resolved before creating a query.
+    // Wait until auth state and admin role are fully resolved before creating a query.
     if (!firestore || isAuthLoading || isProfileLoading) {
       return null;
     }
@@ -228,5 +229,3 @@ export default function ReportsPage() {
     </AdminAuthGuard>
   );
 }
-
-    
